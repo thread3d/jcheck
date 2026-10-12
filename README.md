@@ -32,6 +32,7 @@ Requires a JDK and nothing else — no Gradle, no Maven, no network.
 | `jcheck explain <code>` | Long-form explanation: why it matters, failing and fixed example. |
 | `jcheck init` | Writes `jcheck.toml`; `--agent` adds the agent instructions snippet. |
 | `jcheck daemon start\|stop\|status\|run` | Warm daemon over a Unix domain socket. |
+| `jcheck mcp` | Resources-only MCP server on stdio, for MCP-capable agent hosts. |
 
 Formats: `--message-format=human|json|llm|sarif`.
 Exit codes: `0` clean (warnings allowed unless `--deny-warnings`), `1` diagnostics at error
@@ -49,6 +50,62 @@ error[J0203]: missing return statement
 analysis reached T2 of 5; T3-T5 skipped due to compile errors
 jcheck: 1 error, 0 warnings.
 ```
+
+## MCP interface
+
+`jcheck mcp` serves jcheck's context over the Model Context Protocol, so an MCP-capable agent
+host can pull it without shelling out.
+
+**Resources only — no tools, deliberately.** The CLI already is the tool interface, and a second
+way to ask for the same diagnostics would create exactly the "two modes the agent has to choose
+between" that SPEC.md warns against. Resources are the part the CLI cannot express: pull-based
+context that costs nothing until the agent asks for it.
+
+| Resource | What it is |
+| --- | --- |
+| `jcheck://capabilities` | **The important one.** Which tiers actually run here, and where the guarantee ends |
+| `jcheck://diagnostics` | Root-cause-first, capped diagnostic list in the agent-facing format |
+| `jcheck://diagnostics.json` | The same findings as JSON Lines (versioned schema) |
+| `jcheck://catalog` | Every code jcheck can emit, with its upstream key and tier |
+| `jcheck://docs/{code}` | The long-form explanation, e.g. `jcheck://docs/J0201` |
+| `jcheck://catalog/{code}` | One catalog entry, e.g. `jcheck://catalog/J0201` |
+| `jcheck://suppressions` | Every suppression found, for auditing |
+
+`jcheck://capabilities` is the reason this exists. The spec is emphatic that a quiet T3 must never
+read as a clean T3, and that an agent must know where the guarantee ends — but in the CLI that
+honesty is a note line the agent may skim. As a resource it is queryable on demand, and it derives
+the gap from data rather than restating it: "catalogued but not implemented" is computed as the
+catalog's jcheck-pack codes minus the ones with implementations, so it cannot silently drift.
+
+**The server is the warm process.** An MCP server is long-lived for the agent's editing session,
+so it holds the resolved build model and the last analysis, and re-runs javac only when the source
+tree actually changed — a fingerprint over source file mtimes and sizes plus source-root directory
+mtimes. That is the spec's warm-daemon goal achieved without a second process to supervise.
+Subscribe to `jcheck://diagnostics` and the server sends `notifications/resources/updated` when the
+tree changes.
+
+Registering it with a host is a command plus an argument:
+
+```jsonc
+// e.g. an MCP host config
+{ "command": "/path/to/jcheck/jcheck", "args": ["mcp", "--root", "/path/to/project"] }
+```
+
+Protocol notes: newline-delimited JSON-RPC 2.0 over stdio; version negotiation against
+`2025-11-25`, `2025-06-18`, `2025-03-26` and `2024-11-05`; `-32002` for an unknown resource. The
+transport requires that nothing but MCP messages reaches stdout, so all logging goes to stderr and
+the server redirects `System.out` to stderr to defend the stream against any library that prints —
+a stray `println` anywhere in the engine cannot corrupt a message.
+
+Two deliberate, documented deviations: `listChanged` is **not** claimed (the resource list is
+static, and claiming a capability we do not honour is worse than omitting it), and `tools/list`
+answers with an empty array rather than an error so probing hosts are not confused, without
+declaring a tools capability.
+
+Verified against the official `@modelcontextprotocol/sdk` client, not only jcheck's own:
+see `tests/mcp-sdk-verify/`.
+
+
 
 ## Design notes worth knowing
 
@@ -91,6 +148,8 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
 - **Daemon** — length-prefixed binary protocol over a Unix domain socket, keyed by a hash of the
   project root so serving a project never writes into it. `jcheck check` uses a running daemon
   automatically and falls back in-process.
+- **MCP server** — resources-only, stdio JSON-RPC 2.0, with the server acting as the warm
+  per-session process and source-change subscriptions. See [MCP interface](#mcp-interface).
 - **`init`, `fix`, `explain`, `fmt`, `build`, `test`** — including a JUnit XML parser that lifts
   project stack frames above framework frames.
 - **Tests** — 920 assertions: unit tests plus 8 rustc-style UI golden cases under
@@ -139,9 +198,11 @@ src/main/java/jcheck/
   build/       build model
   cli/         commands
   daemon/      Unix-socket server and client
+  mcp/         MCP resources-only server, resource providers, warm session state
   fix/ init/ explain/ testharness/
 src/main/resources/jcheck/catalog/*.tsv   185 catalog rows
 docs/                                     explain pages
 tests/java/                               unit tests and the golden runner
 tests/ui/cases/                           rustc-style golden cases
+tests/mcp-sdk-verify/                     opt-in MCP check against the official SDK
 ```

@@ -1,0 +1,9 @@
+{
+  "name": "jcheck-mcp-sdk-verify",
+  "private": true,
+  "type": "module",
+  "description": "Interoperability check for jcheck's MCP server against the official MCP SDK client.",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1"
+  }
+}

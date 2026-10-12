@@ -11,3 +11,6 @@
 
 # Build output (build.sh writes here; nothing under out/ is source)
 out/
+
+# Opt-in MCP interoperability check (see tests/mcp-sdk-verify/README.md)
+tests/mcp-sdk-verify/node_modules/

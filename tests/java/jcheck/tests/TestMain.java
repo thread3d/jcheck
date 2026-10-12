@@ -44,6 +44,7 @@ public final class TestMain {
         }
 
         UnitTests.run(repoRoot);
+        McpTests.run(repoRoot);
         uiGoldenTests(repoRoot, bless);
 
         System.out.println();
@@ -68,8 +69,23 @@ public final class TestMain {
         }
     }
 
+    /**
+     * Equality assertion.
+     *
+     * <p>Numbers are compared by value, not by box type: {@code Long(1).equals(Integer(1))} is
+     * false, and a test that fails with "expected &lt;1&gt; but was &lt;1&gt;" is worse than
+     * useless because it points at the wrong thing.
+     */
     public static void eq(String name, Object expected, Object actual) {
-        boolean ok = expected == null ? actual == null : expected.equals(actual);
+        boolean ok;
+        if (expected instanceof Number && actual instanceof Number) {
+            Number e = (Number) expected;
+            Number a = (Number) actual;
+            ok = e.longValue() == a.longValue()
+                || Double.compare(e.doubleValue(), a.doubleValue()) == 0;
+        } else {
+            ok = expected == null ? actual == null : expected.equals(actual);
+        }
         check(name, ok, "expected <" + expected + "> but was <" + actual + ">");
     }
 

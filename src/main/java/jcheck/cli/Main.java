@@ -11,6 +11,7 @@ import jcheck.daemon.Daemon;
 import jcheck.daemon.DaemonClient;
 import jcheck.explain.Explainer;
 import jcheck.init.Initializer;
+import jcheck.mcp.McpServer;
 
 /** jcheck's single entry point. */
 public final class Main {
@@ -19,7 +20,8 @@ public final class Main {
 
     public static final Set<String> VALUE_FLAGS = Set.of(
         "root", "message-format", "max-diagnostics", "context-lines", "profile",
-        "deny", "warn", "allow", "sources", "classpath", "release", "format");
+        "deny", "warn", "allow", "sources", "classpath", "release", "format",
+        "watch-interval-ms");
 
     private Main() {
     }
@@ -66,6 +68,8 @@ public final class Main {
                 return emit(runBuild(rest));
             case "daemon":
                 return runDaemon(rest);
+            case "mcp":
+                return runMcp(rest);
             default:
                 System.err.println("jcheck: unknown command '" + command + "'");
                 System.err.print(usage());
@@ -299,6 +303,21 @@ public final class Main {
         }
     }
 
+    // ---- mcp --------------------------------------------------------------
+
+    /**
+     * {@code jcheck mcp}: a resources-only MCP server on stdio.
+     *
+     * <p>Stays in the foreground and owns stdin/stdout, because the stdio transport is the
+     * protocol channel. All logging goes to stderr.
+     */
+    static int runMcp(String[] rest) {
+        Args a = Args.parse(rest, VALUE_FLAGS);
+        Path root = Path.of(a.get("root", ".")).toAbsolutePath().normalize();
+        long pollMillis = a.getInt("watch-interval-ms", 1000);
+        return McpServer.serveStdio(root, pollMillis);
+    }
+
     // ---- helpers ----------------------------------------------------------
 
     static CheckCommand.Outcome runProcess(List<String> cmd, Path dir, String label) {
@@ -368,6 +387,7 @@ public final class Main {
             "  explain   long-form explanation for a diagnostic code",
             "  init      writes jcheck.toml, optional package stubs and agent instructions",
             "  daemon    start | stop | status | run",
+            "  mcp       resources-only MCP server on stdio (for MCP-capable agent hosts)",
             "  version   prints the version",
             "",
             "flags:",
@@ -383,6 +403,7 @@ public final class Main {
             "  --release N                             compile against a release level",
             "  --daemon                                require the warm daemon",
             "  --no-daemon                             run in this process",
+            "  --watch-interval-ms N                   MCP source-change poll interval (default 1000)",
             "",
             "exit codes: 0 clean, 1 diagnostics at error level, 2 tool or configuration failure",
             "");

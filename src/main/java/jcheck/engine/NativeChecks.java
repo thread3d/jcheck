@@ -18,6 +18,23 @@ import jcheck.model.Diagnostic;
  */
 public final class NativeChecks {
 
+    /**
+     * jcheck-pack codes emitted by the T3 AST check pack.
+     *
+     * <p>Everything else in the catalog under {@code source=jcheck} is a documented intention, not
+     * a check. The MCP capabilities resource derives the gap from these lists rather than
+     * restating it by hand, so "catalogued but not implemented" cannot drift out of date
+     * silently.
+     */
+    public static final List<String> IMPLEMENTED_CHECK_CODES = List.of("J0706");
+
+    /** jcheck codes emitted outside the compile path, by the test harness. */
+    public static final List<String> IMPLEMENTED_HARNESS_CODES = List.of("J0901");
+
+    /** Every jcheck code this build can actually emit, from either path. */
+    public static final List<String> IMPLEMENTED_CODES =
+        List.of("J0706", "J0901");
+
     private NativeChecks() {
     }
 
