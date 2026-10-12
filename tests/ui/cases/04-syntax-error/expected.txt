@@ -1,0 +1,8 @@
+error[J0104]: illegal start of expression
+  --> src/main/java/demo/S.java:5:17
+ 5 |         int x = ;
+   |                 ^ not a valid expression start
+   = source: javac (compiler.err.illegal.start.of.expr)
+
+analysis reached T0 of 5; T1-T5 skipped due to compile errors
+jcheck: 1 error, 0 warnings.

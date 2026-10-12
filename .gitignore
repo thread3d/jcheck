@@ -8,3 +8,6 @@
 
 # Logs
 *.log
+
+# Build output (build.sh writes here; nothing under out/ is source)
+out/

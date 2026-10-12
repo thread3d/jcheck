@@ -1,0 +1,12 @@
+error[J0205]: cannot find symbol
+  --> src/main/java/demo/U.java:5:9
+ 5 |         Missing m = new Missing();
+   |         ^^^^^^^ cannot be resolved
+   = note: symbol:   class Missing
+   = note: location: class demo.U
+   = help: check the spelling and the imports
+   = help: run a build so generated sources exist
+   = source: javac (compiler.err.cant.resolve.location)
+
+analysis reached T1 of 5; T2-T5 skipped due to compile errors
+jcheck: 1 error, 0 warnings.

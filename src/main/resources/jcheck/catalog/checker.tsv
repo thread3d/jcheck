@@ -1,0 +1,11 @@
+# jcheck catalog: Checker Framework diagnostics (source=checker). 9 fields: source, source_key, code, tier, headline, label, group, help, doc
+checker	nullness	J0509	4	Checker Framework: nullness violation	nullness	null-deref	satisfy the Nullness Checker or relax the annotation	docs/J0509.md
+checker	initialization	J0510	4	field may be read before it is initialized	may be uninitialized	definite-init	initialize the field on every path or mark it @UnknownInitialization	docs/J0510.md
+checker	index	J0511	4	index may be outside the bounds of {0}	possible out-of-bounds index	index-bounds	prove the index is in range or add a bounds check	docs/J0511.md
+checker	lock	J0512	4	lock is not held on this access	missing lock	lock	acquire the guarding lock before the access	docs/J0512.md
+checker	optional	J0513	4	Optional value is used unsafely	unsafe Optional use	null-optional	check emptiness before dereferencing	docs/J0513.md
+checker	signature	J0514	4	method signature is not consistent with the supertype	signature mismatch	signature		docs/J0514.md
+checker	aliasing	J0515	4	@Unique reference is aliased	aliased reference	aliasing	keep a single owning reference or mark it @NonLeaked	docs/J0515.md
+checker	i18n	J0516	4	localizable string is used without a locale	missing locale	i18n	pass an explicit Locale	docs/J0516.md
+checker	regex	J0517	4	regex is used without a @Regex annotation	unannotated regex	regex		docs/J0517.md
+checker	resourceleak	J0803	4	resource may leak on some path	resource leak	unclosed-resource	close the resource on all paths or hand ownership to a caller	docs/J0803.md

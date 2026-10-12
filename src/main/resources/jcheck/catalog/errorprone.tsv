@@ -1,0 +1,33 @@
+# jcheck catalog: Error Prone checks (source=errorprone). 9 fields: source, source_key, code, tier, headline, label, group, help, doc
+errorprone	CheckReturnValue	J0421	3	return value of {0} must be used	result ignored	ignored-return	assign, return or otherwise consume the value|use @CanIgnoreReturnValue only when ignoring is deliberate	docs/J0421.md
+errorprone	MissingCasesInEnumSwitch	J0422	3	switch over enum {0} is missing cases	cases missing	non-exhaustive-switch	handle every enum constant so new constants fail to compile	docs/J0422.md
+errorprone	UnnecessaryDefaultInEnumSwitch	J0423	3	default case is unnecessary in an exhaustive enum switch	unnecessary default	enum-default	remove the default so new constants fail to compile	docs/J0423.md
+errorprone	MissingSwitchDefault	J0424	3	switch is missing a default case	missing default	missing-switch-default		docs/J0424.md
+errorprone	Immutable	J0425	3	class {0} is not immutable	not immutable	immutability	make fields final and private and use immutable types	docs/J0425.md
+errorprone	GuardedBy	J0426	3	shared mutable field {0} has no @GuardedBy	unguarded shared state	guarded-by	annotate the field with @GuardedBy and hold the lock on every access	docs/J0426.md
+errorprone	ThreadSafe	J0427	3	class is annotated @ThreadSafe but is not thread-safe	not thread-safe	thread-safety		docs/J0427.md
+errorprone	NarrowingCompoundAssignment	J0428	3	compound assignment narrows {0} to {1}	narrowing compound assignment	numeric-narrowing	use an explicit widening assignment or Math.*Exact	docs/J0428.md
+errorprone	IntLongMath	J0429	3	int multiplication {0} is assigned to a long and may overflow	int arithmetic before widening	numeric-narrowing	cast an operand to long before multiplying	docs/J0429.md
+errorprone	ReferenceEquality	J0430	3	reference equality compares {0} by identity	use equals	reference-equality	use equals or Objects.equals unless identity is intended	docs/J0430.md
+errorprone	EqualsHashCode	J0431	3	class defines equals but not hashCode	equals without hashCode	equals-hashcode	override hashCode whenever equals is overridden	docs/J0431.md
+errorprone	FutureReturnValueIgnored	J0432	3	return value of {0} is ignored	future result ignored	ignored-return	handle the future or use a method that does not return one	docs/J0432.md
+errorprone	CatchAndPrintStackTrace	J0433	3	exception is logged with printStackTrace instead of a logger	printStackTrace	swallowed-exception	log through the project logging facade	docs/J0433.md
+errorprone	EmptyCatch	J0434	3	catch block is empty	exception swallowed	swallowed-exception	handle, rethrow or log the exception	docs/J0434.md
+errorprone	FieldCanBeFinal	J0435	3	field {0} can be final	can be final	can-be-final	add final to the field	docs/J0435.md
+errorprone	UnusedVariable	J0436	3	variable {0} is never used	unused variable	unused	remove the variable or use it	docs/J0436.md
+errorprone	ReturnValueIgnored	J0437	3	return value of {0} is ignored	return value ignored	ignored-return		docs/J0437.md
+errorprone	DeadException	J0438	3	exception {0} is created but never thrown	dead exception	dead-exception	throw the exception or remove the allocation	docs/J0438.md
+errorprone	DefaultCharset	J0439	3	implicit use of the platform default charset	default charset	default-charset	pass StandardCharsets.UTF_8 explicitly	docs/J0439.md
+errorprone	StringSplitter	J0440	3	String.split is used on a single-character literal	prefer an explicit splitter	string-splitter	use a compiled Pattern or a well-tested splitter	docs/J0440.md
+errorprone	ArraysAsListPrimitiveArray	J0441	3	Arrays.asList is called on a primitive array	primitive array treated as one element	arrays-as-list	use a boxed array or an IntStream	docs/J0441.md
+errorprone	BadImport	J0442	3	importing a nested type makes the code harder to read	bad import	bad-import		docs/J0442.md
+errorprone	MixedMutabilityReturnType	J0443	3	method returns both mutable and immutable collections	mixed mutability	mixed-mutability	return one mutability consistently	docs/J0443.md
+errorprone	NonAtomicVolatileUpdate	J0444	3	volatile field {0} is updated non-atomically	non-atomic update	non-atomic-update	use AtomicInteger or synchronize	docs/J0444.md
+errorprone	OperatorPrecedence	J0445	3	operator precedence may not be what this expression means	ambiguous precedence	operator-precedence	add parentheses to state the intent	docs/J0445.md
+errorprone	SelfAssignment	J0446	3	variable {0} is assigned to itself	self assignment	self-assignment		docs/J0446.md
+errorprone	TypeParameterUnusedInFormals	J0447	3	type parameter {0} is used only in the method result	unused type parameter	unused-type-param		docs/J0447.md
+errorprone	UnnecessaryParentheses	J0448	3	unnecessary parentheses around {0}	redundant parentheses	unnecessary-parens		docs/J0448.md
+errorprone	UnusedMethod	J0449	3	method {0} is never used	unused method	unused		docs/J0449.md
+errorprone	WaitNotInLoop	J0450	3	wait() is not called in a loop	wait without a loop	wait-not-in-loop	re-check the condition after waking to handle spurious wakeups	docs/J0450.md
+errorprone	WrongOneof	J0451	3	oneof field is read for the wrong case	wrong oneof case	wrong-oneof		docs/J0451.md
+errorprone	MustBeClosedChecker	J0802	3	resource {0} is not closed on all paths	must be closed	unclosed-resource	use try-with-resources or call close()	docs/J0802.md

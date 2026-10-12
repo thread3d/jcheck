@@ -1,0 +1,16 @@
+# jcheck catalog: jcheck custom check pack (source=jcheck). 9 fields: source, source_key, code, tier, headline, label, group, help, doc
+jcheck	SuppressionNeedsReason	J0003	2	suppression has no reason	add a reason		use @SuppressJcheck(code = 'J0801', reason = '...')|every suppression needs a real reason	docs/J0003.md
+jcheck	UncheckedArithmetic	J0301	3	raw arithmetic on {0} may overflow	unchecked arithmetic	numeric-overflow	use Math.addExact, Math.multiplyExact or Math.toIntExact	docs/J0301.md
+jcheck	LossyCast	J0302	3	cast from {0} to {1} may lose information	lossy cast	numeric-narrowing	use Math.toIntExact or an explicit range check	docs/J0302.md
+jcheck	SharedMutableWithoutGuard	J0601	3	shared mutable field {0} has no @GuardedBy	unguarded shared state	guarded-by	annotate the field with @GuardedBy and hold the lock on every access	docs/J0601.md
+jcheck	MutationDuringIteration	J0602	3	collection {0} is modified while being iterated	mutation during iteration	mutation-during-iteration	collect the changes and apply them after the loop, or use the iterator's remove	docs/J0602.md
+jcheck	EscapingMutableInternal	J0603	3	internal mutable {0} escapes without a copy	escaping mutable state	escaping-mutable	return or store a defensive copy, or an immutable view	docs/J0603.md
+jcheck	UnsafeOutsideUnsafe	J0701	3	unsafe operation outside an @Unsafe region	unsafe operation	unsafe-gate	wrap the operation in an @Unsafe(reason = '...') method or class	docs/J0701.md
+jcheck	MutableStaticState	J0705	3	mutable static field {0}	mutable static state	mutable-static	make the field final or annotate the deliberate exception	docs/J0705.md
+jcheck	LocalCanBeFinal	J0706	3	local variable {0} can be final	can be final	can-be-final	add the final modifier	docs/J0706.md
+jcheck	UnclosedResource	J0801	3	resource {0} is not closed on all paths	unclosed resource	unclosed-resource	use try-with-resources	docs/J0801.md
+jcheck	TodoMarker	J0902	3	unfinished marker {0} in shipped code	unfinished code	todo-marker	implement the code or link a tracked issue	docs/J0902.md
+jcheck	UnclosedExecutorOrThread	J1001	3	executor or thread {0} has no visible shutdown	no shutdown path	unclosed-executor	call shutdown() or shutdownNow() in a finally block, or use try-with-resources	docs/J1001.md
+jcheck	TestFailure	J0901	5	test failed	test failure		junit reports a failing test|run `jcheck test` locally to reproduce|check whether the test asserts something real	docs/J0901.md
+junit	junit.failure	J0901	5	test failed	test failure		junit reports a failing test|run `jcheck test` locally to reproduce|check whether the test asserts something real	docs/J0901.md
+junit	junit.error	J0901	5	test errored	test error		junit reports a test that threw|run `jcheck test` locally to reproduce	docs/J0901.md

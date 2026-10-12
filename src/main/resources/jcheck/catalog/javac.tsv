@@ -1,0 +1,106 @@
+# jcheck catalog: javac diagnostics (source=javac). 9 fields: source, source_key, code, tier, headline, label, group, help, doc
+javac	compiler.err.expected	J0101	0	expected {0}	expected {0}		insert the missing token|check the declaration or statement around this point	docs/J0101.md
+javac	compiler.err.expected2	J0102	0	expected {0} or {1}	expected {0} or {1}			docs/J0102.md
+javac	compiler.err.expected3	J0103	0	expected {0}, {1} or {2}				docs/J0103.md
+javac	compiler.err.illegal.start.of.expr	J0104	0	illegal start of expression	not a valid expression start			docs/J0104.md
+javac	compiler.err.illegal.start.of.type	J0105	0	illegal start of type	not a valid type			docs/J0105.md
+javac	compiler.err.illegal.start.of.stmt	J0106	0	illegal start of statement	not a valid statement			docs/J0106.md
+javac	compiler.err.not.stmt	J0107	0	not a statement	this is not a statement			docs/J0107.md
+javac	compiler.err.orphaned	J0108	0	orphaned construct with no matching opener	orphaned			docs/J0108.md
+javac	compiler.err.premature.eof	J0109	0	reached end of file while parsing	unexpected end of file		check for an unclosed brace, parenthesis or string literal	docs/J0109.md
+javac	compiler.err.unclosed.str.lit	J0110	0	unclosed string literal	string literal is never closed		add the closing double quote	docs/J0110.md
+javac	compiler.err.unclosed.char.lit	J0111	0	unclosed character literal	character literal is never closed		add the closing single quote	docs/J0111.md
+javac	compiler.err.unclosed.comment	J0112	0	unclosed comment	comment is never closed		add the closing comment terminator	docs/J0112.md
+javac	compiler.err.empty.char.lit	J0113	0	empty character literal	needs exactly one character		a char holds one UTF-16 code unit; use a single-character string instead	docs/J0113.md
+javac	compiler.err.illegal.esc.char	J0114	0	illegal escape character	unknown escape sequence			docs/J0114.md
+javac	compiler.err.invalid.hex.number	J0115	0	invalid hexadecimal number	not a valid hex literal		hexadecimal literals use digits 0-9 and a-f after the 0x prefix	docs/J0115.md
+javac	compiler.err.invalid.octal.number	J0116	0	invalid octal number	not a valid octal literal		0-prefixed literals are octal; use 0x for hex or 0b for binary|08 and 09 are not valid octal digits	docs/J0116.md
+javac	compiler.err.int.number.too.large	J0117	0	integer literal is too large	does not fit in an int		add an L suffix to make it a long, or use BigInteger	docs/J0117.md
+javac	compiler.err.fp.number.too.large	J0118	0	floating-point literal is too large	does not fit in a double			docs/J0118.md
+javac	compiler.err.illegal.line.end.in.char.lit	J0119	0	illegal line end in character literal	character literal spans a line break		a character literal cannot span lines; escape the newline	docs/J0119.md
+javac	compiler.err.class.public.should.be.in.file	J0120	0	public class {0} must be declared in a file named {0}.java	rename the file or make the class non-public		one public top-level type per source file	docs/J0120.md
+javac	compiler.err.else.without.if	J0121	0	else without if	no matching if			docs/J0121.md
+javac	compiler.err.catch.without.try	J0122	0	catch without try	no matching try			docs/J0122.md
+javac	compiler.err.finally.without.try	J0123	0	finally without try	no matching try			docs/J0123.md
+javac	compiler.err.try.without.catch.finally.or.resource.decls	J0124	0	try without catch, finally or resource declarations	nothing handles or closes this try		add a catch or finally clause, or declare a resource	docs/J0124.md
+javac	compiler.err.misplaced.constructors	J0125	0	constructor declaration is not allowed here	misplaced constructor			docs/J0125.md
+javac	compiler.err.repeated.modifier	J0126	0	repeated modifier	duplicate modifier			docs/J0126.md
+javac	compiler.err.illegal.char	J0127	0	illegal character: {0}	illegal character		remove the character or replace it with a valid token|invisible characters such as a non-breaking space are a common cause	docs/J0127.md
+javac	compiler.err.invalid.meth.decl.ret.type.req	J0128	0	invalid method declaration; return type required	missing return type		constructors must have the same name as the class	docs/J0128.md
+javac	compiler.err.void.not.allowed.here	J0129	0	void type is not allowed here	void is not a value			docs/J0129.md
+javac	compiler.err.dot.class.expected	J0130	0	.class expected	expected .class			docs/J0130.md
+javac	compiler.err.cant.resolve	J0204	1	cannot resolve symbol {0}	cannot be resolved			docs/J0204.md
+javac	compiler.err.cant.resolve.location	J0205	1	cannot resolve symbol {0}	cannot be resolved		check the spelling and the imports|run a build so generated sources exist	docs/J0205.md
+javac	compiler.err.cant.resolve.location.args	J0206	1	cannot resolve symbol {0}	cannot be resolved for these arguments			docs/J0206.md
+javac	compiler.err.doesnt.exist	J0207	1	package {0} does not exist	package not found		add the dependency or fix the import	docs/J0207.md
+javac	compiler.err.cant.find.symbol	J0208	1	cannot find symbol	cannot be resolved			docs/J0208.md
+javac	compiler.err.does.not.exist	J0209	1	package {0} does not exist	package not found			docs/J0209.md
+javac	compiler.err.import.not.found	J0210	1	import {0} cannot be resolved	import not found			docs/J0210.md
+javac	compiler.err.package.not.visible	J0211	1	package {0} is not visible	package not visible		the package is not exported by its module; add requires or a read edge	docs/J0211.md
+javac	compiler.err.not.def.access.class.intf.cant.access	J0212	1	{0} is not public in {1} and cannot be accessed from outside the package	not accessible			docs/J0212.md
+javac	compiler.err.not.def.public.cant.access	J0213	1	{0} is not public in {1} and cannot be accessed from outside the package	not public			docs/J0213.md
+javac	compiler.err.non-static.cant.be.ref	J0214	1	non-static {0} cannot be referenced from a static context	needs an instance			docs/J0214.md
+javac	compiler.err.cant.apply.symbol	J0215	1	no suitable method found for {0}({1})	no matching overload		check the argument types and arity	docs/J0215.md
+javac	compiler.err.cant.apply.symbol.1	J0216	1	no suitable method found for {0}	no matching overload			docs/J0216.md
+javac	compiler.err.no.suitable.method.found	J0217	1	no suitable method found for {0}	no matching method		check the argument types and the receiver type	docs/J0217.md
+javac	compiler.err.no.suitable.abstract.meth.found	J0218	1	no suitable abstract method found for {0}	no matching method			docs/J0218.md
+javac	compiler.err.incompatible.types	J0219	1	incompatible types: {0} cannot be converted to {1}	{0} cannot be converted to {1}		convert explicitly or change the declared type	docs/J0219.md
+javac	compiler.err.prob.found.req	J0220	1	incompatible types: found {0}, required {1}	found {0}, required {1}			docs/J0220.md
+javac	compiler.err.incompatible.diff.ret	J0221	1	incompatible return type: {0} cannot be converted to {1}	wrong return type			docs/J0221.md
+javac	compiler.err.wrong.number.type.args	J0222	1	wrong number of type arguments; required {0}	wrong number of type arguments			docs/J0222.md
+javac	compiler.err.wrong.number.type.vars	J0223	1	wrong number of type variables; required {0}, found {1}	wrong number of type variables			docs/J0223.md
+javac	compiler.err.type.var.cant.be.deref	J0224	1	type variable {0} cannot be dereferenced	cannot dereference a type variable		bound the type variable so the member exists	docs/J0224.md
+javac	compiler.err.abstract.cant.be.instantiated	J0225	1	{0} is abstract and cannot be instantiated	abstract type		instantiate a concrete subtype or use a factory	docs/J0225.md
+javac	compiler.err.does.not.override.abstract	J0226	1	{0} does not override the abstract method {1}	does not override			docs/J0226.md
+javac	compiler.err.method.does.not.override.superclass	J0227	1	method does not override or implement a method from a supertype	no such method in the supertype		check the name, parameter types and return type|add @Override to catch this earlier	docs/J0227.md
+javac	compiler.err.override.meth	J0228	1	method does not override or implement a method from a supertype	does not override			docs/J0228.md
+javac	compiler.err.override.meth.doesnt.throw	J0229	1	overridden method does not throw {0}	throws a broader checked exception			docs/J0229.md
+javac	compiler.err.name.clash.same.erasure	J0230	1	name clash: {0} and {1} have the same erasure	same erasure		rename one method or change its parameter types	docs/J0230.md
+javac	compiler.err.cyclic.inheritance	J0231	1	cyclic inheritance involving {0}	inheritance cycle			docs/J0231.md
+javac	compiler.err.illegal.combination.of.modifiers	J0232	1	illegal combination of modifiers: {0} and {1}	modifiers conflict			docs/J0232.md
+javac	compiler.err.mod.not.allowed.here	J0233	1	modifier {0} is not allowed here	modifier not allowed			docs/J0233.md
+javac	compiler.err.imp.req.not.allowed.here	J0234	1	imports and requires are not allowed here	not allowed here			docs/J0234.md
+javac	compiler.err.annotation.type.not.applicable	J0235	1	annotation type is not applicable to this kind of declaration	annotation not applicable here			docs/J0235.md
+javac	compiler.err.annotation.missing.default.value	J0236	1	annotation {0} is missing a default value for the element {1}	missing annotation element			docs/J0236.md
+javac	compiler.err.duplicate.class	J0237	1	duplicate class: {0}	duplicate class		two declarations with the same fully-qualified name are on the classpath	docs/J0237.md
+javac	compiler.err.already.defined	J0238	1	{0} is already defined in {1}	already defined		rename one declaration or remove the duplicate	docs/J0238.md
+javac	compiler.err.array.req.but.found	J0239	1	array required, but {0} found	{0} is not an array			docs/J0239.md
+javac	compiler.err.no.intf.expected.here	J0240	1	no interface expected here	not an interface			docs/J0240.md
+javac	compiler.err.intf.expected.here	J0241	1	interface expected here	interface required			docs/J0241.md
+javac	compiler.err.cant.inherit.from.final	J0242	1	cannot inherit from final {0}	final class cannot be extended			docs/J0242.md
+javac	compiler.err.override.static	J0243	1	overriding method is static	static method cannot override an instance method			docs/J0243.md
+javac	compiler.err.not.exhaustive.statement	J0201	2	non-exhaustive switch: some cases are not handled	non-exhaustive	non-exhaustive-switch	handle every permitted subtype or enum constant|avoid a default so new subtypes fail to compile	docs/J0201.md
+javac	compiler.err.not.exhaustive	J0202	2	non-exhaustive pattern switch	not exhaustive	non-exhaustive-switch	handle every permitted subtype or add a default	docs/J0202.md
+javac	compiler.err.missing.ret.stmt	J0203	2	missing return statement	missing return		every path must return a value|add a return or throw at the end of the method	docs/J0203.md
+javac	compiler.err.var.might.not.have.been.initialized	J0244	2	variable {0} might not have been initialized	possibly uninitialized		assign a value on every path before use	docs/J0244.md
+javac	compiler.err.var.might.already.be.assigned	J0245	2	variable {0} might already have been assigned	possibly reassigned		a blank final may be assigned at most once	docs/J0245.md
+javac	compiler.err.cant.assign.val.to.final.var	J0246	2	cannot assign a value to final variable {0}	final variable			docs/J0246.md
+javac	compiler.err.unreachable.stmt	J0247	2	unreachable statement	control never reaches this statement		remove the statement or fix the control flow	docs/J0247.md
+javac	compiler.err.unreported.exception.need.to.catch.or.throw	J0248	2	unreported exception {0}; must be caught or declared to be thrown	unhandled checked exception		wrap in try/catch or add a throws clause	docs/J0248.md
+javac	compiler.err.call.must.be.first.stmt.in.ctor	J0249	2	call to {0} must be the first statement in a constructor	must be first			docs/J0249.md
+javac	compiler.err.cant.ref.before.ctor.called	J0250	2	cannot reference {0} before the supertype constructor has been called	use before super			docs/J0250.md
+javac	compiler.err.divide.by.zero	J0251	2	division by zero	constant divisor is zero		guard the divisor or use a non-zero value	docs/J0251.md
+javac	compiler.err.possible.loss.of.precision	J0252	2	possible lossy conversion from {0} to {1}	narrowing conversion		use an explicit cast, Math.toIntExact, or a wider type	docs/J0252.md
+javac	compiler.err.exception.already.caught	J0253	2	exception {0} has already been caught	already caught by an earlier clause			docs/J0253.md
+javac	compiler.err.except.never.thrown.in.try	J0254	2	exception {0} is never thrown in the body of the corresponding try statement	never thrown here			docs/J0254.md
+javac	compiler.err.initializer.must.be.able.to.complete.normally	J0255	2	initializer must be able to complete normally	cannot complete normally			docs/J0255.md
+javac	compiler.warn.unchecked.call.mbr.of.raw.type	J0401	2	unchecked call to {0} as a member of the raw type {1}	unchecked	unchecked		docs/J0401.md
+javac	compiler.warn.unchecked.assign	J0402	2	unchecked assignment: {0} to {1}	unchecked	unchecked		docs/J0402.md
+javac	compiler.warn.unchecked.varargs.non.reifiable.type	J0403	2	unchecked generic array creation for varargs parameter of type {0}	unchecked varargs	unchecked-varargs		docs/J0403.md
+javac	compiler.warn.raw.class.use	J0404	2	raw use of parameterized class {0}	raw type	raw-type	supply type arguments	docs/J0404.md
+javac	compiler.warn.deprecated.annotation	J0405	2	deprecated item is not annotated with @Deprecated	missing @Deprecated	deprecation		docs/J0405.md
+javac	compiler.warn.has.been.deprecated	J0406	2	{0} in {1} has been deprecated	deprecated	deprecation	use the documented replacement|if the use is intentional, suppress with a reason	docs/J0406.md
+javac	compiler.warn.fallthrough	J0407	2	possible fall-through into case	falls through	fallthrough	add a break or a fall-through comment	docs/J0407.md
+javac	compiler.warn.try.explicit.close.call	J0408	2	explicit call to close() on a resource is redundant	already closed by try-with-resources	unclosed-resource		docs/J0408.md
+javac	compiler.warn.self.ref	J0409	2	self-reference in initializer	self-reference	self-reference		docs/J0409.md
+javac	compiler.warn.this.escape	J0410	2	this escapes the constructor	this escapes	this-escape	avoid passing this to overridable methods or publishing it from a constructor	docs/J0410.md
+javac	compiler.warn.static.not.qualified.by.type	J0411	2	static member should be qualified by the type name, not by an instance expression	qualify by type	static-access		docs/J0411.md
+javac	compiler.warn.non.varargs.meth.invoked.with.varargs	J0412	2	non-varargs call of a varargs method with an inexact argument type for the last parameter	inexact varargs argument	varargs		docs/J0412.md
+javac	compiler.warn.varargs.non.reifiable.type	J0413	2	possible heap pollution from parameterized vararg type {0}	heap pollution	unchecked-varargs	add @SafeVarargs where the method is safe	docs/J0413.md
+javac	compiler.warn.serializable.non.transient.instance.field	J0414	2	non-transient instance field of a serializable class has a non-serializable type	not serializable	serial		docs/J0414.md
+javac	compiler.warn.missing.serialVersionUID	J0415	2	serializable class {0} has no definition of serialVersionUID	missing serialVersionUID	serial	declare a private static final long serialVersionUID	docs/J0415.md
+javac	compiler.warn.override.equals.but.not.hashcode	J0416	2	{0} overrides equals but not hashCode	equals without hashCode	equals-hashcode	override hashCode whenever equals is overridden	docs/J0416.md
+javac	compiler.warn.auxiliary.class.accessed.from.outside.of.its.source.file	J0417	2	auxiliary class {0} in {1} is accessed from outside its own source file	auxiliary class used elsewhere	auxiliary-class		docs/J0417.md
+javac	compiler.warn.unknown.enum.constant.in.switch	J0418	2	enum constant {0} is unknown and is not matched by this switch	unknown enum constant	enum-switch		docs/J0418.md
+javac	compiler.warn.prob.found.req	J0419	2	unchecked conversion: found {0}, required {1}	unchecked conversion	unchecked		docs/J0419.md
+javac	compiler.warn.try.resource.not.referenced	J0420	2	auto-closeable resource {0} is never referenced in the body of the try statement	resource never referenced	unused-resource		docs/J0420.md

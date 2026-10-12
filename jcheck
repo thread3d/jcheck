@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Thin client launcher. Prefers the built jar, falls back to the classes directory.
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [ -f "$here/out/jcheck.jar" ]; then
+  exec java -cp "$here/out/jcheck.jar" jcheck.cli.Main "$@"
+fi
+
+if [ -d "$here/out/classes" ]; then
+  exec java -cp "$here/out/classes" jcheck.cli.Main "$@"
+fi
+
+echo "jcheck: not built yet; run ./build.sh" >&2
+exit 2

@@ -1,0 +1,16 @@
+# jcheck catalog: SpotBugs patterns (source=spotbugs). 9 fields: source, source_key, code, tier, headline, label, group, help, doc
+spotbugs	NP_NULL_ON_SOME_PATH	J0452	5	possible null pointer dereference on some path	possible null dereference	null-deref	guard the value on every path or make it non-null	docs/J0452.md
+spotbugs	NP_NULL_ON_SOME_PATH_EXCEPTION	J0453	5	possible null pointer dereference on an exception path	null on exception path	null-deref		docs/J0453.md
+spotbugs	RCN_REDUNDANT_NULLCHECK_OF_NULL_VALUE	J0454	5	redundant null check; the value is already known to be null	redundant null check	redundant-nullcheck		docs/J0454.md
+spotbugs	DLS_DEAD_LOCAL_STORE	J0455	5	store to local variable {0} is never read	dead store	dead-store	remove the assignment or use the value	docs/J0455.md
+spotbugs	EI_EXPOSE_REP	J0456	5	returns an internal mutable representation	internal array or collection exposed	escaping-mutable	return a copy or an immutable view	docs/J0456.md
+spotbugs	EI_EXPOSE_REP2	J0457	5	stores an external mutable representation	mutable argument stored directly	escaping-mutable	copy the argument before storing it	docs/J0457.md
+spotbugs	MS_SHOULD_BE_FINAL	J0458	5	mutable static field {0} should be final	non-final static field	mutable-static	make the field final unless mutation is deliberate	docs/J0458.md
+spotbugs	DM_DEFAULT_ENCODING	J0459	5	byte-to-string conversion uses the platform default charset	default charset	default-charset	pass StandardCharsets.UTF_8 explicitly	docs/J0459.md
+spotbugs	SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE	J0460	5	SQL statement is built from a non-constant string	dynamic SQL	sql-injection	use a PreparedStatement with bound parameters	docs/J0460.md
+spotbugs	PATH_TRAVERSAL_IN	J0461	5	file path is built from untrusted input	path traversal risk	path-traversal	validate and normalize the path against a fixed root	docs/J0461.md
+spotbugs	REC_CATCH_EXCEPTION	J0462	5	exception is caught that the try block does not throw	overly broad catch	broad-catch	catch the specific checked exceptions that can occur	docs/J0462.md
+spotbugs	SWL_SLEEP_WITH_LOCK_HELD	J0463	5	Thread.sleep is called while a lock is held	sleeping with lock held	sleep-with-lock	release the lock or wait on a condition instead	docs/J0463.md
+spotbugs	IS2_INCONSISTENT_SYNC	J0464	5	field {0} is inconsistently synchronized	inconsistent synchronization	inconsistent-sync	synchronize every access on the same lock	docs/J0464.md
+spotbugs	OS_OPEN_STREAM	J0804	5	stream opened but not closed on all paths	stream not closed	unclosed-resource	use try-with-resources	docs/J0804.md
+spotbugs	OBL_UNSATISFIED_OBLIGATION	J0805	5	obligation to close {0} is not satisfied	close obligation unmet	unclosed-resource		docs/J0805.md

@@ -1,0 +1,9 @@
+# jcheck catalog: NullAway diagnostics (source=nullaway). 9 fields: source, source_key, code, tier, headline, label, group, help, doc
+nullaway	NullAway	J0501	3	possible null dereference	null dereference	null-deref	annotate the value @Nullable and check it before use|make the value non-null at its source	docs/J0501.md
+nullaway	NullAway:Assignment	J0502	3	assigning a @Nullable value to non-null field {0}	nullable assigned to non-null	null-assignment	check for null first or widen the target to @Nullable	docs/J0502.md
+nullaway	NullAway:Dereference	J0503	3	dereferencing a @Nullable value	nullable dereference	null-deref	guard with a null check or require a non-null value	docs/J0503.md
+nullaway	NullAway:MethodReturn	J0504	3	returning a @Nullable value from a non-null method	nullable return	null-return	return a non-null value or mark the method @Nullable	docs/J0504.md
+nullaway	NullAway:Field	J0505	3	field {0} is neither initialized nor @Nullable	uninitialized non-null field	null-field	initialize the field or mark it @Nullable	docs/J0505.md
+nullaway	NullAway:Parameter	J0506	3	passing a @Nullable value where non-null is required	nullable argument	null-parameter	check the argument or widen the parameter to @Nullable	docs/J0506.md
+nullaway	NullAway:Array	J0507	3	array element may be null where non-null is required	nullable array element	null-array		docs/J0507.md
+nullaway	NullAway:Optional	J0508	3	Optional value is used without an emptiness check	unguarded Optional	null-optional	call orElseThrow, map or ifPresent before use	docs/J0508.md

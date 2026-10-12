@@ -1,0 +1,10 @@
+warning[J0706]: local variable `label` is never reassigned; it can be `final`
+  --> src/main/java/demo/Cart.java:7:9
+ 7 |         String label = "total";
+   |         ^^^^^^^^^^^^^^^^^^^^^^^ declared here, never reassigned
+   = help: add the final modifier
+   = suggestion: make `label` final [MachineApplicable]
+   = source: jcheck (LocalCanBeFinal)
+
+analysis reached T3 of 5; T4-T5 skipped (not enabled)
+jcheck: 0 errors, 1 warning.
