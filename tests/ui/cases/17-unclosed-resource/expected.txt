@@ -1,0 +1,9 @@
+error[J0801]: resource `reader` is not closed on all paths
+  --> src/main/java/demo/Readers.java:12:9
+12 |         final BufferedReader reader = Files.newBufferedReader(path);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ declared here, never closed
+   = help: use try-with-resources
+   = source: jcheck (UnclosedResource)
+
+analysis reached T3 of 5; T4-T5 skipped (not enabled)
+jcheck: 1 error, 0 warnings.

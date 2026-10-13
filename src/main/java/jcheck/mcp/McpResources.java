@@ -213,7 +213,7 @@ public final class McpResources {
         if (NativeChecks.IMPLEMENTED_CODES.isEmpty()) {
             sb.append("| T3 error-prone + nullaway + jcheck-checks | not available | nothing implemented |\n");
         } else {
-            sb.append("| T3 error-prone + nullaway + jcheck-checks | partial | only the built-in pack: ")
+            sb.append("| T3 error-prone + nullaway + jcheck-checks | partial | the built-in jcheck pack runs: ")
               .append(String.join(", ", NativeChecks.IMPLEMENTED_CHECK_CODES))
               .append(". Error Prone and NullAway plugin jars are not attached. |\n");
         }

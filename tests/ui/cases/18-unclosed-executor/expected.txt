@@ -1,0 +1,16 @@
+error[J1001]: executor `pool` has no visible shutdown
+  --> src/main/java/demo/Jobs.java:10:9
+10 |         final ExecutorService pool = Executors.newFixedThreadPool(4);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ never shut down
+   = help: call shutdown() or shutdownNow() in a finally block, or use try-with-resources
+   = source: jcheck (UnclosedExecutorOrThread)
+
+error[J1001]: thread `worker` is never joined or interrupted
+  --> src/main/java/demo/Jobs.java:24:9
+24 |         final Thread worker = new Thread(() -> System.out.println("work"));
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ started here, no shutdown path
+   = help: call shutdown() or shutdownNow() in a finally block, or use try-with-resources
+   = source: jcheck (UnclosedExecutorOrThread)
+
+analysis reached T3 of 5; T4-T5 skipped (not enabled)
+jcheck: 2 errors, 0 warnings.

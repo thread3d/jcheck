@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import jcheck.build.BuildModel;
 import jcheck.catalog.Catalog;
 import jcheck.catalog.CatalogEntry;
@@ -108,6 +110,38 @@ final class UnitTests {
         check("catalog:reserved-J0706", catalog.lookup("jcheck", "LocalCanBeFinal") != null
             && "J0706".equals(catalog.lookup("jcheck", "LocalCanBeFinal").code()),
             "J0706 must map from jcheck/LocalCanBeFinal");
+
+        String[][] pack = {
+            {"SuppressionNeedsReason", "J0003"},
+            {"UncheckedArithmetic", "J0301"},
+            {"LossyCast", "J0302"},
+            {"SharedMutableWithoutGuard", "J0601"},
+            {"MutationDuringIteration", "J0602"},
+            {"EscapingMutableInternal", "J0603"},
+            {"UnsafeOutsideUnsafe", "J0701"},
+            {"MutableStaticState", "J0705"},
+            {"LocalCanBeFinal", "J0706"},
+            {"UnclosedResource", "J0801"},
+            {"TodoMarker", "J0902"},
+            {"UnclosedExecutorOrThread", "J1001"},
+        };
+        for (String[] row : pack) {
+            CatalogEntry e = catalog.lookup("jcheck", row[0]);
+            check("catalog:pack:" + row[0], e != null && row[1].equals(e.code()),
+                "expected " + row[0] + " -> " + row[1]);
+        }
+
+        // The declared implemented set and the catalogued jcheck pack must not drift apart: the
+        // MCP capabilities resource derives "where the guarantee ends" from exactly this pair.
+        Set<String> catalogued = new TreeSet<>();
+        for (CatalogEntry e : catalog.entries()) {
+            if ("jcheck".equals(e.source())) {
+                catalogued.add(e.code());
+            }
+        }
+        catalogued.removeAll(jcheck.engine.NativeChecks.IMPLEMENTED_HARNESS_CODES);
+        eq("catalog:pack-complete", catalogued.toString(),
+            new TreeSet<>(jcheck.engine.NativeChecks.IMPLEMENTED_CHECK_CODES).toString());
     }
 
     // ---- tier assignment ---------------------------------------------------

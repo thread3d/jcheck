@@ -1,0 +1,16 @@
+error[J0603]: internal mutable field `items` is stored without a defensive copy
+  --> src/main/java/demo/Inventory.java:10:9
+10 |         this.items = items;
+   |         ^^^^^^^^^^^^^^^^^^ stored by reference
+   = help: return or store a defensive copy, or an immutable view
+   = source: jcheck (EscapingMutableInternal)
+
+error[J0603]: internal mutable field `items` escapes without a copy
+  --> src/main/java/demo/Inventory.java:14:16
+14 |         return items;
+   |                ^^^^^ returned by reference
+   = help: return or store a defensive copy, or an immutable view
+   = source: jcheck (EscapingMutableInternal)
+
+analysis reached T3 of 5; T4-T5 skipped (not enabled)
+jcheck: 2 errors, 0 warnings.

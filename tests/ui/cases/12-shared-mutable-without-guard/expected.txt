@@ -1,0 +1,9 @@
+error[J0601]: shared mutable field `count` has no @GuardedBy
+  --> src/main/java/demo/Counter.java:8:5
+ 8 |     private int count;
+   |     ^^^^^^^^^^^^^^^^^^ unguarded shared state
+   = help: annotate the field with @GuardedBy and hold the lock on every access
+   = source: jcheck (SharedMutableWithoutGuard)
+
+analysis reached T3 of 5; T4-T5 skipped (not enabled)
+jcheck: 1 error, 0 warnings.

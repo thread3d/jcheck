@@ -1,0 +1,18 @@
+error[J0301]: raw int arithmetic `offset + length` may overflow
+  --> src/main/java/demo/Frame.java:7:16
+ 7 |         return offset + length;
+   |                ^^^^^^^^^^^^^^^ unchecked arithmetic
+   = help: use Math.addExact, Math.multiplyExact or Math.toIntExact
+   = suggestion: use Math.addExact [MachineApplicable]
+   = source: jcheck (UncheckedArithmetic)
+
+error[J0301]: raw long arithmetic `width * height` may overflow
+  --> src/main/java/demo/Frame.java:11:16
+11 |         return width * height;
+   |                ^^^^^^^^^^^^^^ unchecked arithmetic
+   = help: use Math.addExact, Math.multiplyExact or Math.toIntExact
+   = suggestion: use Math.multiplyExact [MachineApplicable]
+   = source: jcheck (UncheckedArithmetic)
+
+analysis reached T3 of 5; T4-T5 skipped (not enabled)
+jcheck: 2 errors, 0 warnings.

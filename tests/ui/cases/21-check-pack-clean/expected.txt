@@ -1,0 +1,2 @@
+analysis reached T3 of 5; T4-T5 skipped (not enabled)
+jcheck: 0 errors, 0 warnings.

@@ -24,6 +24,7 @@ the headlines, labels and help lines live in the TSV resources under
 | J0705 | MutableStaticState | T3 jcheck-checks | deny in strict |
 | J0706 | LocalCanBeFinal | T3 jcheck-checks | warn |
 | J0801 | UnclosedResource | T3 jcheck-checks | deny |
+| J0901 | TestFailure | T5 junit | deny |
 | J0902 | TodoMarker | T3 jcheck-checks | warn |
 | J1001 | UnclosedExecutorOrThread | T3 jcheck-checks | deny |
 

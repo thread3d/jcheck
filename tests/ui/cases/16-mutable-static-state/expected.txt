@@ -1,0 +1,16 @@
+error[J0705]: mutable static field `services`
+  --> src/main/java/demo/Registry.java:8:5
+ 8 |     static Map<String, String> services = new HashMap<>();
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ mutable global state
+   = help: make the field final or annotate the deliberate exception
+   = source: jcheck (MutableStaticState)
+
+error[J0705]: mutable static field `cache`
+  --> src/main/java/demo/Registry.java:9:5
+ 9 |     private static final Map<String, String> cache = new HashMap<>();
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ mutable global state
+   = help: make the field final or annotate the deliberate exception
+   = source: jcheck (MutableStaticState)
+
+analysis reached T3 of 5; T4-T5 skipped (not enabled)
+jcheck: 2 errors, 0 warnings.

@@ -1,0 +1,26 @@
+error[J0003]: @SuppressWarnings("NullAway") needs a reason; use @SuppressJcheck(code = "J0003", reason = "...")
+  --> src/main/java/demo/Suppressions.java:5:5
+ 5 |     @SuppressWarnings("NullAway")
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no reason given
+   = help: use @SuppressJcheck(code = 'J0801', reason = '...')
+   = help: every suppression needs a real reason
+   = source: jcheck (SuppressionNeedsReason)
+
+error[J0003]: @Unsafe has no reason; add reason = "..."
+  --> src/main/java/demo/Suppressions.java:9:5
+ 9 |     @Unsafe(reason = "")
+   |     ^^^^^^^^^^^^^^^^^^^^ no reason given
+   = help: use @SuppressJcheck(code = 'J0801', reason = '...')
+   = help: every suppression needs a real reason
+   = source: jcheck (SuppressionNeedsReason)
+
+error[J0003]: suppression has no reason
+  --> src/main/java/demo/Suppressions.java:13:5
+13 |     @SuppressJcheck(code = "J0302", reason = "")
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no reason given
+   = help: use @SuppressJcheck(code = 'J0801', reason = '...')
+   = help: every suppression needs a real reason
+   = source: jcheck (SuppressionNeedsReason)
+
+analysis reached T3 of 5; T4-T5 skipped (not enabled)
+jcheck: 3 errors, 0 warnings.

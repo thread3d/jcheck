@@ -1,0 +1,9 @@
+error[J0701]: `setAccessible` is used outside an @Unsafe region
+  --> src/main/java/demo/Reflection.java:9:9
+ 9 |         m.setAccessible(true);
+   |         ^^^^^^^^^^^^^^^^^^^^^ unsafe operation
+   = help: wrap the operation in an @Unsafe(reason = '...') method or class
+   = source: jcheck (UnsafeOutsideUnsafe)
+
+analysis reached T3 of 5; T4-T5 skipped (not enabled)
+jcheck: 1 error, 0 warnings.

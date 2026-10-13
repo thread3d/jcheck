@@ -143,8 +143,13 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   ordering, and suppression auditing via `--report-suppressions`.
 - **Four renderers** — rustc-style human output, JSON Lines with a versioned schema, a compact
   agent-shaped LLM format with diffs and a cap, and SARIF 2.1.0.
-- **Check pack (T3, AST-based)** — `J0706 LocalCanBeFinal` with a machine-applicable `final`
-  insertion, run through the standard `TaskListener`/`Trees` API rather than a new engine.
+- **Check pack (T3, AST-based)** — the full pack runs through the standard
+  `TaskListener`/`Trees` API rather than a new engine: `J0003 SuppressionNeedsReason`,
+  `J0301 UncheckedArithmetic`, `J0302 LossyCast`, `J0601 SharedMutableWithoutGuard`,
+  `J0602 MutationDuringIteration`, `J0603 EscapingMutableInternal`, `J0701 UnsafeOutsideUnsafe`,
+  `J0705 MutableStaticState`, `J0706 LocalCanBeFinal`, `J0801 UnclosedResource`,
+  `J0902 TodoMarker` and `J1001 UnclosedExecutorOrThread`. `J0706`, `J0302` and `J0301` carry
+  machine-applicable fixes.
 - **Daemon** — length-prefixed binary protocol over a Unix domain socket, keyed by a hash of the
   project root so serving a project never writes into it. `jcheck check` uses a running daemon
   automatically and falls back in-process.
@@ -152,8 +157,12 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   per-session process and source-change subscriptions. See [MCP interface](#mcp-interface).
 - **`init`, `fix`, `explain`, `fmt`, `build`, `test`** — including a JUnit XML parser that lifts
   project stack frames above framework frames.
-- **Tests** — 920 assertions: unit tests plus 8 rustc-style UI golden cases under
+- **Tests** — 1182 assertions: unit tests plus 21 rustc-style UI golden cases under
   `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output.
+- **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
+  (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
+  `Todo()`/`Unreachable()`/`Unimplemented()` markers behind J0902, and a sealed `Result` type.
+  `./build.sh` produces `out/jcheck-support.jar`.
 
 ## What is not implemented yet
 
@@ -170,8 +179,6 @@ overstate itself:
   types can appear unresolved. jcheck says so on every run where that applies.
 - **Checker Framework (T4) and SpotBugs (T5)** are not wired up; `[checkers.per-module]` and
   `[bytecode]` parse and are reflected in the tier line, but never run.
-- **The rest of the custom check pack** (`J0301`, `J0302`, `J0601`–`J0603`, `J0701`, `J0705`,
-  `J0902`, `J1001`) exists in the catalog and in `docs/`, but only `J0706` has an implementation.
 - **No `jcheck-junit` extension** — timeouts, thread-leak and fd-leak detection are not built;
   `jcheck test` parses JUnit XML produced by the build tool.
 - **No incremental dependents graph, PIT, JaCoCo, jcstress/Lincheck, Infer, or LSP bridge.**
@@ -201,6 +208,7 @@ src/main/java/jcheck/
   mcp/         MCP resources-only server, resource providers, warm session state
   fix/ init/ explain/ testharness/
 src/main/resources/jcheck/catalog/*.tsv   185 catalog rows
+support/java/jcheck/support/              jcheck-support annotations, Todo markers, Result
 docs/                                     explain pages
 tests/java/                               unit tests and the golden runner
 tests/ui/cases/                           rustc-style golden cases

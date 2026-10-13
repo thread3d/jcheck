@@ -1,0 +1,17 @@
+error[J0302]: cast from `long` to `int` may lose information
+  --> src/main/java/demo/Widths.java:6:16
+ 6 |         return (int) total;
+   |                ^^^^^^^^^^^ narrowing conversion
+   = help: use Math.toIntExact or an explicit range check
+   = suggestion: convert with Math.toIntExact [MachineApplicable]
+   = source: jcheck (LossyCast)
+
+error[J0302]: cast from `int` to `short` may lose information
+  --> src/main/java/demo/Widths.java:10:16
+10 |         return (short) value;
+   |                ^^^^^^^^^^^^^ narrowing conversion
+   = help: use Math.toIntExact or an explicit range check
+   = source: jcheck (LossyCast)
+
+analysis reached T3 of 5; T4-T5 skipped (not enabled)
+jcheck: 2 errors, 0 warnings.

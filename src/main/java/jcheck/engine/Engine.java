@@ -38,7 +38,7 @@ public final class Engine {
         if (opts.sources.isEmpty()) {
             configErrors.add("no Java sources found; pass --sources or configure the project source roots");
             return new CheckReport(List.of(), List.of(), List.of(),
-                tierReport(opts, List.of(), false), toolNotes, configErrors);
+                tierReport(opts, false, Integer.MAX_VALUE), toolNotes, configErrors);
         }
 
         JavacRunner.Result run = JavacRunner.run(opts, catalog);
@@ -51,15 +51,19 @@ public final class Engine {
          * -XDshould-stop.ifError=FLOW javac keeps going after a syntax error and can still reach
          * ANALYZE for a file it only partially parsed, so a T3 check would happily report on
          * broken code. An error in T0-T2 means T3+ did not run, whatever javac recovered from.
+         *
+         * Only javac's own errors gate the higher tiers. A T2 finding from jcheck itself (J0003,
+         * a policy annotation) does not affect attribution, so it must not be read as "the code
+         * did not compile" and silence the pack.
          */
         List<Diagnostic> suppressedHigherTier = new ArrayList<>();
-        int lowestErrorTier = Integer.MAX_VALUE;
+        int blockingTier = Integer.MAX_VALUE;
         for (Diagnostic d : all) {
-            if (d.isError()) {
-                lowestErrorTier = Math.min(lowestErrorTier, d.tier);
+            if (d.isError() && "javac".equals(d.source)) {
+                blockingTier = Math.min(blockingTier, d.tier);
             }
         }
-        if (lowestErrorTier <= Tier.T2) {
+        if (blockingTier <= Tier.T2) {
             List<Diagnostic> keep = new ArrayList<>(all.size());
             for (Diagnostic d : all) {
                 if (d.tier > Tier.T2) {
@@ -97,7 +101,7 @@ public final class Engine {
             }
         }
 
-        TierReport tiers = tierReport(opts, gated, anyErrors);
+        TierReport tiers = tierReport(opts, anyErrors, blockingTier);
         return new CheckReport(
             relativize(gated, opts.rootDir),
             relativize(dropped, opts.rootDir),
@@ -107,15 +111,9 @@ public final class Engine {
             configErrors);
     }
 
-    private static TierReport tierReport(CheckOptions opts, List<Diagnostic> diags, boolean anyErrors) {
-        int errorMin = Integer.MAX_VALUE;
-        for (Diagnostic d : diags) {
-            if (d.isError()) {
-                errorMin = Math.min(errorMin, d.tier);
-            }
-        }
+    private static TierReport tierReport(CheckOptions opts, boolean anyErrors, int blockingTier) {
         int highest = opts.highestEnabledTier();
-        int reached = anyErrors ? Math.min(errorMin, highest) : highest;
+        int reached = blockingTier <= Tier.T2 ? Math.min(blockingTier, highest) : highest;
 
         List<TierReport.Entry> entries = new ArrayList<>();
         for (int t = 0; t <= Tier.MAX; t++) {
