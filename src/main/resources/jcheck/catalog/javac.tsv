@@ -114,3 +114,6 @@ javac	compiler.warn.leaks.not.accessible.unexported	J0471	2	type {0} is not acce
 javac	compiler.warn.has.been.deprecated.for.removal	J0472	2	{0} has been deprecated for removal	deprecated for removal	deprecation	stop using it: it is scheduled to be removed	docs/J0472.md
 javac	compiler.warn.redundant.cast	J0473	2	redundant cast to {0}	redundant cast	redundant-cast	remove the cast; the value is already of that type	docs/J0473.md
 javac	compiler.warn.unchecked.meth.invocation.applied	J0474	2	unchecked method invocation applied to {0}	unchecked invocation	unchecked	add an explicit type witness, or suppress with a reason	docs/J0474.md
+javac	compiler.err.override.incompatible.ret	J0260	2	{0} in {1} clashes with {2}: incompatible return type	incompatible return type	override	return the same type, or make the override generic	docs/J0260.md
+javac	compiler.err.override.weaker.access	J0261	2	{0} in {1} cannot override {2}: weaker access privileges	weaker access	override	widen the overriding method's access to match	docs/J0261.md
+javac	compiler.warn.dangling.doc.comment	J0475	2	dangling documentation comment	dangling doc comment	dangling-javadoc	attach the comment to a declaration or remove it	docs/J0475.md

@@ -49,6 +49,8 @@ public final class BuildModel {
     public final Integer release;
     /** True when the dependency classpath came from the build tool or an explicit override. */
     public final boolean classpathResolved;
+    /** Sub-project directories whose own source roots were folded into {@link #sources}. */
+    public final List<Path> modules;
     /** Limitations the user must see: unresolved dependency graphs, missing source roots. */
     public final List<String> notes;
     /** Purely informational resolution details; never rendered. */
@@ -56,7 +58,7 @@ public final class BuildModel {
 
     private BuildModel(Path root, String buildTool, List<Path> sources, List<Path> classpath,
                        List<Path> processorPath, Integer release, boolean classpathResolved,
-                       List<String> notes, List<String> info) {
+                       List<Path> modules, List<String> notes, List<String> info) {
         this.root = root;
         this.buildTool = buildTool;
         this.sources = List.copyOf(sources);
@@ -64,6 +66,7 @@ public final class BuildModel {
         this.processorPath = List.copyOf(processorPath);
         this.release = release;
         this.classpathResolved = classpathResolved;
+        this.modules = List.copyOf(modules);
         this.notes = List.copyOf(notes);
         this.info = List.copyOf(info);
     }
@@ -79,6 +82,7 @@ public final class BuildModel {
         Path absRoot = root.toAbsolutePath().normalize();
         String tool = detectBuildTool(absRoot);
 
+        List<Path> modules = new ArrayList<>();
         List<Path> sources;
         if (!sourceOverrides.isEmpty()) {
             sources = expand(absRoot, sourceOverrides);
@@ -106,6 +110,15 @@ public final class BuildModel {
             }
             if (!moduleRoots.isEmpty()) {
                 info.add("module source roots: " + relativeAll(absRoot, moduleRoots));
+                for (Path sourceRoot : moduleRoots) {
+                    Path module = sourceRoot.getParent() == null ? null
+                        : sourceRoot.getParent().getParent() == null ? null
+                        : sourceRoot.getParent().getParent().getParent();
+                    if (module != null && !modules.contains(module)) {
+                        modules.add(module);
+                    }
+                }
+                notes.add(modules.size() + " module(s) detected under " + relativeAll(absRoot, modules));
             }
             if (candidates.isEmpty()) {
                 candidates.add(absRoot);
@@ -173,7 +186,7 @@ public final class BuildModel {
         }
 
         return new BuildModel(absRoot, tool, sources, new ArrayList<>(classpath), processorPath,
-            release, classpathResolved, notes, info);
+            release, classpathResolved, modules, notes, info);
     }
 
     public static String detectBuildTool(Path root) {

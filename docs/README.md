@@ -15,6 +15,8 @@ the headlines, labels and help lines live in the TSV resources under
 | J0003 | SuppressionNeedsReason | T2 policy | deny |
 | J0201 | NonExhaustiveSwitch | T2 flow | error |
 | J0203 | MissingReturnStatement | T2 flow | error |
+| J0260 | OverrideIncompatibleReturn | T2 flow | deny |
+| J0261 | OverrideWeakerAccess | T2 flow | deny |
 | J0465 | UnsafeVarargs | T2 flow | warn |
 | J0466 | PossibleFallThrough | T2 flow | warn |
 | J0467 | AmbiguousOverload | T2 flow | warn |
@@ -25,6 +27,7 @@ the headlines, labels and help lines live in the TSV resources under
 | J0472 | DeprecatedForRemoval | T2 flow | warn |
 | J0473 | RedundantCast | T2 flow | warn |
 | J0474 | UncheckedMethodInvocation | T2 flow | warn |
+| J0475 | DanglingDocComment | T2 flow | warn |
 | J0301 | UncheckedArithmetic | T3 jcheck-checks | deny in `@Checked` |
 | J0302 | LossyCast | T3 jcheck-checks | deny |
 | J0601 | SharedMutableWithoutGuard | T3 jcheck-checks | deny in `@ThreadSafe` |

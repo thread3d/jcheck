@@ -131,7 +131,7 @@ alone, because tools word the same problem differently. Diagnostics that are the
 only when code, file, line, *and detail lines* match — javac reports one missing type twice, and
 merging on the message alone would have collapsed two genuinely different unresolved names.
 
-**Catalog entries are data.** 200 rows in TSV resources map `(source, source_key)` to a stable
+**Catalog entries are data.** 203 rows in TSV resources map `(source, source_key)` to a stable
 code, tier, curated headline and help lines. Unmapped keys are never dropped: they get a stable
 `J9xxx` code derived from an FNV-1a hash of the key, and are flagged as needing curation.
 
@@ -220,12 +220,13 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   per-session process and source-change subscriptions. See [MCP interface](#mcp-interface).
 - **`init`, `fix`, `explain`, `fmt`, `build`, `test`** — including a JUnit XML parser that lifts
   project stack frames above framework frames.
-- **Tests** — 1309 assertions: unit tests plus 22 rustc-style UI golden cases under
+- **Tests** — 1322 assertions: unit tests plus 22 rustc-style UI golden cases under
   `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output. Set
   `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end analyzer cases (Error Prone, NullAway, the
   Checker Framework, SpotBugs, jcstress, OpenRewrite, the three-library corpus and `jcheck-junit`),
-  which need downloaded jars; that run has 1346 assertions on JDK 20 and 21, fewer on JDK 25 where
-  the analyzers that do not support it are skipped.
+  which need downloaded jars; that run has 1356 assertions on JDK 20 and fewer on 21 (1354) and 25
+  (1346), where an analyzer or corpus library that does not support the JDK is skipped rather than
+  counted green.
 - **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
   (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
   `Todo()`/`Unreachable()`/`Unimplemented()` markers behind J0902, and a sealed `Result` type.
@@ -258,15 +259,16 @@ when one is present and skips otherwise.
 
 Not covered here, and stated so a green run is not mistaken for more than it is: a broad
 false-positive corpus. The suite runs the T3 pack over three real libraries — Apache Commons Lang,
-Gson and Apache Commons Collections, 180k lines in total — and asserts that each reaches T3, finds
-something, stays under 250 diagnostics per kLOC and leaves no upstream key uncatalogued; it
-currently reports 8 per kLOC. Three libraries are still not a corpus. The suite runs on JDK 20, 21
-and 25; on 25 the analyzers that do not support it are skipped rather than counted green. The daemon
-tests cover classpath change, stale cache, concurrent requests, malformed frames, shutdown and
-out-of-memory recovery (a constrained-heap daemon must answer rather than hang, and a fresh one must
-come up afterwards). Every catalog entry is checked to have an implementation, every
-machine-applicable suggestion is applied and re-checked, and the incremental planner is tested for
-the body-change, API-change and classpath-change rules.
+Gson and Apache Commons Collections, 180k lines in total — and asserts that each library which
+compiles there reaches T3, finds something, stays under 250 diagnostics per kLOC and leaves no
+upstream key uncatalogued; it currently reports 8 per kLOC. Commons Collections 4.4 does not compile
+on JDK 21 or 25, so it is skipped on those rather than counted; three libraries are still not a
+corpus. The suite runs on JDK 20, 21 and 25; on 25 the analyzers that do not support it are skipped
+rather than counted green. The daemon tests cover classpath change, stale cache, concurrent
+requests, malformed frames, shutdown and out-of-memory recovery (a constrained-heap daemon must
+answer rather than hang, and a fresh one must come up afterwards). Every catalog entry is checked to
+have an implementation, every machine-applicable suggestion is applied and re-checked, and the
+incremental planner is tested for the body-change, API-change and classpath-change rules.
 
 ## Environment
 
