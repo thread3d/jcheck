@@ -81,6 +81,8 @@ public final class Main {
                 return emit(runInfer(rest));
             case "jcstress":
                 return emit(runJcstress(rest));
+            case "lincheck":
+                return emit(runLincheck(rest));
             default:
                 System.err.println("jcheck: unknown command '" + command + "'");
                 System.err.print(usage());
@@ -363,6 +365,14 @@ public final class Main {
         return JcstressCommand.run(buildRequest(a));
     }
 
+    /**
+     * {@code jcheck lincheck}: the Lincheck concurrency tests.
+     */
+    static CheckCommand.Outcome runLincheck(String[] rest) {
+        Args a = Args.parse(rest, VALUE_FLAGS);
+        return LincheckCommand.run(buildRequest(a));
+    }
+
     // ---- helpers ----------------------------------------------------------
 
     /**
@@ -448,6 +458,7 @@ public final class Main {
             "  mutate    PIT mutation testing; surviving mutants become diagnostics",
             "  infer     Facebook Infer over the project's sources (native binary)",
             "  jcstress  run @JCStressTest concurrency stress tests",
+            "  lincheck  run Lincheck @Operation concurrency tests",
             "  version   prints the version",
             "",
             "flags:",

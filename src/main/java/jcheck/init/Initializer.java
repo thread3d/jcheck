@@ -244,6 +244,8 @@ public final class Initializer {
             + "coverage_version = \"0.8.12\"\n"
             + "jcstress         = false      # run @JCStressTest classes with jcheck jcstress\n"
             + "jcstress_mode    = \"sanity\"\n"
+            + "lincheck         = false      # run @Operation classes with jcheck lincheck\n"
+            + "lincheck_mode    = \"model-checking\"\n"
             + "launcher         = \"delegate\"   # or \"console\" for jcheck-junit\n"
             + "random_order     = false\n"
             + "\n"

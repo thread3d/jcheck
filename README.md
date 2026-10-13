@@ -38,6 +38,7 @@ Requires a JDK and nothing else — no Gradle, no Maven, no network.
 | `jcheck mutate` | PIT mutation testing; surviving mutants become diagnostics. Scope with `--sources`. |
 | `jcheck infer` | Facebook Infer over the project's sources, when the native binary is available. |
 | `jcheck jcstress` | Run `@JCStressTest` classes with the OpenJDK Concurrency Stress Tests. |
+| `jcheck lincheck` | Run Lincheck `@Operation` concurrency tests; linearizability failures become `J1202`. |
 
 Formats: `--message-format=human|json|llm|sarif`.
 Exit codes: `0` clean (warnings allowed unless `--deny-warnings`), `1` diagnostics at error
@@ -131,7 +132,7 @@ alone, because tools word the same problem differently. Diagnostics that are the
 only when code, file, line, *and detail lines* match — javac reports one missing type twice, and
 merging on the message alone would have collapsed two genuinely different unresolved names.
 
-**Catalog entries are data.** 215 rows in TSV resources map `(source, source_key)` to a stable
+**Catalog entries are data.** 216 rows in TSV resources map `(source, source_key)` to a stable
 code, tier, curated headline and help lines. Unmapped keys are never dropped: they get a stable
 `J9xxx` code derived from an FNV-1a hash of the key, and are flagged as needing curation.
 
@@ -198,7 +199,11 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   missing the command says so instead of reporting a quiet T5.
 - **Concurrency stress (T5)** — `jcheck jcstress` compiles the project's `@JCStressTest` sources
   with the jcstress annotation processor when no `META-INF/TestList` exists yet, runs them, and
-  reports every forbidden or interesting outcome as `J1201`.
+  reports every forbidden or interesting outcome as `J1201`. `jcheck lincheck` is the Lincheck
+  counterpart: it resolves `lincheck-jvm`, compiles the project's Java test sources when the build
+  tool has not, runs every class with `@Operation` methods in model-checking or stress mode, and
+  reports a linearizability failure as `J1202` with the report's headline. Kotlin Lincheck tests are
+  picked up once the project's own build has compiled them.
 - **OpenRewrite recipes (fix)** — `jcheck rewrite` (or `jcheck fix --rewrite`) resolves
   `rewrite-static-analysis`, compiles a small runner against those jars at run time, and applies the
   configured recipes (by default MissingOverrideAnnotation, FinalizeLocalVariables and
@@ -238,13 +243,14 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   per-session process and source-change subscriptions. See [MCP interface](#mcp-interface).
 - **`init`, `fix`, `explain`, `fmt`, `build`, `test`** — including a JUnit XML parser that lifts
   project stack frames above framework frames.
-- **Tests** — 1403 assertions: unit tests plus 22 rustc-style UI golden cases under
+- **Tests** — 1415 assertions: unit tests plus 22 rustc-style UI golden cases under
   `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output. Set
   `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end analyzer cases (Error Prone, NullAway, the
-  Checker Framework, SpotBugs, jcstress, OpenRewrite, the twenty-one-library corpus and
-  `jcheck-junit`), which need downloaded jars; that run has 1519 assertions on JDK 17 and 20, 1516 on
-  21 and 1508 on 25, where an analyzer or corpus library that does not support the JDK is skipped
-  rather than counted green.
+  Checker Framework, SpotBugs, jcstress, Lincheck, OpenRewrite, the twenty-one-library corpus and
+  `jcheck-junit`), which need downloaded jars; that run has 1535 assertions on JDK 17 and 20, 1532 on
+  21 and 1524 on 25, where an analyzer or corpus library that does not support the JDK is skipped
+  rather than counted green. The counts include the Gradle Tooling API and Maven embedder cases,
+  which run when those installations are present and skip otherwise.
 - **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
   (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
   `Todo()`/`Unreachable()`/`Unimplemented()` markers behind J0902, and a sealed `Result` type.
@@ -263,17 +269,22 @@ Features that work, within stated bounds. Each entry says what holds and what do
 - **The corpus is a guard, not a proof.** Twenty-one real libraries and their per-library noise
   budgets catch regressions; they do not establish that a rule has no false positives. What the suite
   actually runs is under "Testing the tool".
+- **Lincheck instrumentation has a class-file ceiling.** Lincheck 2.39's bundled ASM reads bytecode
+  up to Java 22 (major 66) and silently does nothing when it cannot, so jcheck compiles Java
+  Lincheck tests at `min([project] release, 22)` and refuses a pre-compiled newer test class with a
+  tool failure instead of reporting a clean pass it never verified.
 - **JDK coverage has a floor and a target range.** jcheck runs on JDK 17 or newer (tested on 17, 20,
   21 and 25); Java 8 and 11 are checked as `--release` targets, not as the JDK jcheck runs on. See
   "Environment".
 
 ## What is not implemented yet
 
-One commitment from SPEC.md is outstanding. M4 lists "jcstress / Lincheck hooks": the jcstress hook
-exists (`jcheck jcstress`, J1201), the **Lincheck** one does not. Lincheck tests are not unchecked —
-they run as ordinary JUnit tests under `jcheck test --launcher` — but there is no `jcheck lincheck`
-command to resolve the library, run the stress tests and report their findings as diagnostics.
-Everything else the spec names is implemented.
+Nothing. Every milestone in SPEC.md — M0's feedback loop, M1's Error Prone/NullAway/policy work, M2's
+test harness, M3's check pack and analyzers, and M4's Maven support, incremental dependents graph,
+OpenRewrite catalog, PIT, JaCoCo, jcstress/Lincheck hooks, Infer, LSP bridge and CI SARIF — is
+implemented. Lincheck was the last one: `jcheck lincheck` runs the project's `@Operation` tests and
+reports linearizability failures as `J1202`. What each feature does *not* cover is listed under
+"Limitations" and "Out of scope".
 
 ## Out of scope
 
@@ -295,9 +306,9 @@ explicit.
 `./tests/run.sh` builds jcheck and runs the unit tests, the 22 rustc-style UI golden cases and the
 MCP tests; the default suite needs only a JDK, no network. `JCHECK_TEST_PLUGINS=1` adds the
 end-to-end analyzer cases — Error Prone, NullAway, the Checker Framework, SpotBugs, jcstress,
-OpenRewrite (Java and Kotlin), the twenty-one-library corpus and `jcheck-junit` — which download and
-cache their jars. The Infer case runs against a native binary when one is present and skips
-otherwise.
+Lincheck, OpenRewrite (Java and Kotlin), the twenty-one-library corpus and `jcheck-junit` — which
+download and cache their jars. The Infer case runs against a native binary when one is present and
+skips otherwise.
 
 One thing a green run does not prove is that a rule has no false positives. The suite runs the T3
 pack over twenty-one real libraries' `-sources` jars —
@@ -347,7 +358,8 @@ skipped there and the pins must be bumped to releases that support 25; when an a
 jcheck reports a plugin failure on the tier line rather than a quiet T5. The attached plugins
 are pinned to Error Prone **2.24.1**, NullAway **0.10.18** (with NullAway's `dataflow-nullaway` and
 JSpecify pulled in transitively), the Checker Framework **3.42.0**, SpotBugs **4.8.6**, PIT
-**1.15.8**, JaCoCo **0.8.12**, jcstress **0.16** and OpenRewrite (via `rewrite-static-analysis`
+**1.15.8**, JaCoCo **0.8.12**, jcstress **0.16**, Lincheck **2.39** (the `lincheck-jvm` artifact) and
+OpenRewrite (via `rewrite-static-analysis`
 **2.41.1**, which pulls `rewrite-java` 8.90.2), verified on JDK 17, 20 and 21. All of them are
 configurable in `jcheck.toml`. Infer is a native binary and is located rather
 than resolved; the workspace copy used here is v1.2.0.

@@ -92,6 +92,11 @@ public final class JcheckConfig {
     public boolean jcstress = false;
     public String jcstressVersion = "0.16";
     public String jcstressMode = "sanity";
+    /** Lincheck: run @Operation concurrency tests. */
+    public boolean lincheck = false;
+    public String lincheckVersion = "2.39";
+    public String lincheckMode = "model-checking";
+    public int lincheckIterations = 10;
     /** {@code delegate} (ask the build tool) or {@code console} (run the launcher with jcheck-junit). */
     public String testLauncher = "delegate";
     /** Randomize test method order and print the seed for reproducibility. */
@@ -214,6 +219,10 @@ public final class JcheckConfig {
         c.jcstress = Toml.bool(tests, "jcstress", c.jcstress);
         c.jcstressVersion = Toml.str(tests, "jcstress_version", c.jcstressVersion);
         c.jcstressMode = Toml.str(tests, "jcstress_mode", c.jcstressMode);
+        c.lincheck = Toml.bool(tests, "lincheck", c.lincheck);
+        c.lincheckVersion = Toml.str(tests, "lincheck_version", c.lincheckVersion);
+        c.lincheckMode = Toml.str(tests, "lincheck_mode", c.lincheckMode);
+        c.lincheckIterations = Toml.integer(tests, "lincheck_iterations", c.lincheckIterations);
         c.testLauncher = Toml.str(tests, "launcher", c.testLauncher);
         c.randomTestOrder = Toml.bool(tests, "random_order", c.randomTestOrder);
         c.consoleLauncher = Toml.str(tests, "console_launcher", null);

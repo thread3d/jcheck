@@ -34,6 +34,7 @@ import jcheck.cli.CheckRequest;
 import jcheck.cli.FixCommand;
 import jcheck.cli.InferCommand;
 import jcheck.cli.JcstressCommand;
+import jcheck.cli.LincheckCommand;
 import jcheck.cli.RewriteCommand;
 import jcheck.config.JcheckConfig;
 import jcheck.config.Toml;
@@ -67,6 +68,7 @@ import jcheck.render.RenderOptions;
 import jcheck.render.Renderers;
 import jcheck.render.SarifRenderer;
 import jcheck.testharness.JUnitXmlParser;
+import jcheck.testharness.LincheckRunner;
 import jcheck.util.JsonWriter;
 
 import static jcheck.tests.TestMain.check;
@@ -103,6 +105,7 @@ final class UnitTests {
         multiModuleTests();
         sourceScanTests();
         releaseMatrixTests();
+        lincheckParseTests();
         buildToolModelTests();
         buildToolIntegrationTests();
         gradleSourceSetTests();
@@ -562,6 +565,43 @@ final class UnitTests {
         } finally {
             deleteRecursively(out);
         }
+    }
+
+    // ---- Lincheck -------------------------------------------------------------
+
+    /**
+     * The fork's refusal path. Lincheck's instrumentation silently does nothing when it cannot read
+     * a class file, so a run that skipped instrumentation must never be reported as a clean pass.
+     */
+    private static void lincheckParseTests() {
+        SpanResolver spans = new SpanResolver();
+        Catalog catalog = Catalog.loadDefault();
+        List<String> notes = new ArrayList<>();
+
+        LincheckRunner.Result refused = LincheckRunner.parse(
+            "LINCHECK_UNSUPPORTED\tdemo.Racy\t69\nLINCHECK_DONE\t0\t1\t1\n",
+            List.of(), List.of(), spans, catalog, "model-checking", notes);
+        check("lincheck:unsupported-is-not-clean", !refused.ran, notes.toString());
+        check("lincheck:unsupported-note",
+            notes.stream().anyMatch(n -> n.contains("could not instrument")), notes.toString());
+
+        List<String> failureNotes = new ArrayList<>();
+        LincheckRunner.Result failed = LincheckRunner.parse(
+            "LINCHECK_FAILED\tdemo.Racy\tInvalid execution results (LincheckAssertionError)\n"
+            + "LINCHECK_DONE\t1\t1\t0\n",
+            List.of(), List.of(), spans, catalog, "model-checking", failureNotes);
+        check("lincheck:failure-ran", failed.ran, failureNotes.toString());
+        eq("lincheck:failure-diagnostics", 1, failed.diagnostics.size());
+        contains("lincheck:failure-code", failed.diagnostics.get(0).code, "J1202");
+        contains("lincheck:failure-message", failed.diagnostics.get(0).message,
+            "Invalid execution results");
+
+        List<String> cleanNotes = new ArrayList<>();
+        LincheckRunner.Result clean = LincheckRunner.parse(
+            "LINCHECK_OK\tdemo.Safe\nLINCHECK_DONE\t0\t1\t0\n",
+            List.of(), List.of(), spans, catalog, "model-checking", cleanNotes);
+        check("lincheck:clean-runs", clean.ran, cleanNotes.toString());
+        eq("lincheck:clean-diagnostics", 0, clean.diagnostics.size());
     }
 
     // ---- build-tool models --------------------------------------------------
@@ -1402,6 +1442,39 @@ final class UnitTests {
         CheckCommand.Outcome jcOut = JcstressCommand.run(jcReq);
         contains("plugins:jcstress-failure", jcOut.stdout, "J1201");
         deleteRecursively(jc);
+
+        // Lincheck: one racy class must fail with J1202 while a correct one stays quiet.
+        Path lc = Files.createTempDirectory("jcheck-lincheck-it-");
+        Path lcSrc = lc.resolve("src/test/java/demo");
+        Files.createDirectories(lcSrc);
+        Files.writeString(lcSrc.resolve("RacyCounter.java"),
+            "package demo;\n"
+            + "import org.jetbrains.kotlinx.lincheck.annotations.Operation;\n"
+            + "public class RacyCounter {\n"
+            + "    private int value;\n"
+            + "    @Operation public int increment() { return ++value; }\n"
+            + "    @Operation public int get() { return value; }\n"
+            + "}\n", StandardCharsets.UTF_8);
+        Files.writeString(lcSrc.resolve("SafeCounter.java"),
+            "package demo;\n"
+            + "import java.util.concurrent.atomic.AtomicInteger;\n"
+            + "import org.jetbrains.kotlinx.lincheck.annotations.Operation;\n"
+            + "public class SafeCounter {\n"
+            + "    private final AtomicInteger value = new AtomicInteger();\n"
+            + "    @Operation public int increment() { return value.incrementAndGet(); }\n"
+            + "    @Operation public int get() { return value.get(); }\n"
+            + "}\n", StandardCharsets.UTF_8);
+        Files.writeString(lc.resolve("jcheck.toml"), "[tests]\nlincheck_iterations = 5\n",
+            StandardCharsets.UTF_8);
+        CheckRequest lcReq = new CheckRequest();
+        lcReq.root = lc.toString();
+        lcReq.format = "human";
+        CheckCommand.Outcome lcOut = LincheckCommand.run(lcReq);
+        contains("plugins:lincheck-failure", lcOut.stdout, "J1202");
+        contains("plugins:lincheck-test-name", lcOut.stdout, "RacyCounter");
+        contains("plugins:lincheck-one-of-two", lcOut.stdout, "1 failing test(s) of 2");
+        check("plugins:lincheck-exit", lcOut.exitCode != 0, "exit=" + lcOut.exitCode);
+        deleteRecursively(lc);
 
         Path rw = Files.createTempDirectory("jcheck-rewrite-it-");
         Path rwSrc = rw.resolve("src/main/java/demo");

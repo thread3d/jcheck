@@ -19,3 +19,4 @@ jcheck	MutantSurvived	J1101	5	mutant survived: {0}	surviving mutant	mutation-sur
 jcheck	UncoveredLine	J1102	5	line is not covered by any test	uncovered line	coverage	write a test that executes this line, or remove the dead code	docs/J1102.md
 infer	InferFinding	J1401	5	Infer finding	Infer finding	infer	fix the reported issue, or record why it is a false positive	docs/J1401.md
 jcstress	StressTestFailure	J1201	5	concurrency stress test failed	stress test failure	concurrency	remove the race, or synchronize the accesses the actors share	docs/J1201.md
+lincheck	LincheckFailure	J1202	5	Lincheck found a concurrency failure	Lincheck failure	concurrency	fix the linearizability violation the Lincheck report describes	docs/J1202.md

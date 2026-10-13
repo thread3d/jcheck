@@ -51,6 +51,7 @@ the headlines, labels and help lines live in the TSV resources under
 | J1101 | MutantSurvived | T5 mutation | warn |
 | J1102 | UncoveredLine | T5 coverage | warn |
 | J1201 | StressTestFailure | T5 jcstress | deny |
+| J1202 | LincheckFailure | T5 lincheck | deny |
 | J1301 | AddOverride | T3 jcheck-checks | warn |
 | J1401 | InferFinding | T5 infer | warn |
 | J1500 | OpenRewriteRecipe | T5 rewrite | note |
