@@ -48,6 +48,8 @@ public final class JcheckConfig {
     public List<String> nullnessPackages = List.of();
     public boolean checkerFramework = false;
     public Map<String, List<String>> checkersPerModule = Map.of();
+    /** Checker Framework version to resolve from Maven Central when no classpath is given. */
+    public String checkerVersion = "3.42.0";
     public boolean spotbugs = false;
     public String spotbugsEffort = "max";
     public String spotbugsThreshold = "medium";
@@ -122,6 +124,7 @@ public final class JcheckConfig {
             checkers.put(module, Toml.strList(perModule, module, List.of()));
         }
         c.checkersPerModule = checkers;
+        c.checkerVersion = Toml.str(Toml.table(root, "checkers"), "version", c.checkerVersion);
         if (!checkers.isEmpty()) {
             c.checkerFramework = true;
         }
@@ -223,5 +226,23 @@ public final class JcheckConfig {
     /** The modules declared in the project, or a single unnamed module for a flat layout. */
     public List<String> moduleNames() {
         return modules.isEmpty() ? List.of() : new ArrayList<>(modules);
+    }
+
+    /**
+     * Every checker configured anywhere, de-duplicated. jcheck applies them to the whole
+     * compilation rather than per module, which is an honest simplification: the tier line says
+     * so, and a checker that was configured always runs.
+     */
+    public List<String> checkerNames() {
+        java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
+        for (List<String> v : checkersPerModule.values()) {
+            if (v != null) {
+                out.addAll(v);
+            }
+        }
+        if (out.isEmpty() && checkerFramework) {
+            out.add("nullness");
+        }
+        return new ArrayList<>(out);
     }
 }

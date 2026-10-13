@@ -44,36 +44,47 @@ public final class PluginClasspath {
 
     public static Result resolve(String errorProneVersion, String nullawayVersion, boolean nullaway,
                                  List<String> explicitJars, Path root, boolean offline, String repoUrl) {
-        if (explicitJars != null && !explicitJars.isEmpty()) {
-            List<Path> jars = new ArrayList<>();
-            for (String s : explicitJars) {
-                Path p = Path.of(s);
-                jars.add(p.isAbsolute() ? p : root.resolve(p));
-            }
-            return new Result(jars, List.of(),
-                List.of("using the plugin classpath configured in jcheck.toml"));
-        }
-
         List<String> coordinates = new ArrayList<>();
         coordinates.add("com.google.errorprone:error_prone_core:" + errorProneVersion);
         if (nullaway) {
             coordinates.add("com.uber.nullaway:nullaway:" + nullawayVersion);
             coordinates.add(JSPECIFY);
         }
+        return resolveCoordinates(coordinates, explicitJars, root, offline, repoUrl);
+    }
+
+    /**
+     * Resolves arbitrary coordinates, or uses the explicit jars when the project supplied them.
+     * {@code compileExtra} is the annotation-only artifacts (everything named {@code *-qual} or
+     * {@code jspecify-*}) that the checked code needs on its classpath to name the annotations.
+     */
+    public static Result resolveCoordinates(List<String> coordinates, List<String> explicitJars,
+                                            Path root, boolean offline, String repoUrl) {
+        if (explicitJars != null && !explicitJars.isEmpty()) {
+            List<Path> jars = new ArrayList<>();
+            for (String s : explicitJars) {
+                Path p = Path.of(s);
+                jars.add(p.isAbsolute() ? p : root.resolve(p));
+            }
+            return new Result(jars, annotationOnly(jars),
+                List.of("using the plugin classpath configured in jcheck.toml"));
+        }
 
         URI repo = repoUrl == null || repoUrl.isBlank() ? URI.create(CENTRAL) : URI.create(repoUrl);
         MavenResolver resolver = new MavenResolver(
             MavenResolver.defaultCacheDir().resolve("maven"), List.of(repo), offline);
         List<Path> jars = resolver.resolve(coordinates);
+        return new Result(jars, annotationOnly(jars), new ArrayList<>(resolver.notes()));
+    }
 
+    private static List<Path> annotationOnly(List<Path> jars) {
         List<Path> compileExtra = new ArrayList<>();
         for (Path jar : jars) {
             String name = jar.getFileName().toString();
-            if (name.startsWith("jspecify-")) {
+            if (name.startsWith("jspecify-") || name.startsWith("checker-qual-")) {
                 compileExtra.add(jar);
             }
         }
-        List<String> notes = new ArrayList<>(resolver.notes());
-        return new Result(jars, compileExtra, notes);
+        return compileExtra;
     }
 }

@@ -182,6 +182,25 @@ final class UnitTests {
         contains("plugins:source-nullaway", out.stdout, "source: nullaway");
         contains("plugins:tier3", out.stdout, "analysis reached T3");
         deleteRecursively(tmp);
+
+        Path cf = Files.createTempDirectory("jcheck-checker-it-");
+        Path cfSrc = cf.resolve("src/main/java/demo");
+        Files.createDirectories(cfSrc);
+        Files.writeString(cfSrc.resolve("Cf.java"),
+            "package demo;\n"
+            + "import org.checkerframework.checker.nullness.qual.Nullable;\n"
+            + "public final class Cf {\n"
+            + "    int len(@Nullable String s) {\n"
+            + "        return s.length();\n"
+            + "    }\n"
+            + "}\n", StandardCharsets.UTF_8);
+        Files.writeString(cf.resolve("jcheck.toml"),
+            "[nullness]\nchecker_framework = true\n", StandardCharsets.UTF_8);
+        CheckCommand.Outcome cfOut = TestMain.runCase(cf, "check --profile standard");
+        contains("plugins:checker-nullness", cfOut.stdout, "J0509");
+        contains("plugins:checker-source", cfOut.stdout, "source: checker");
+        contains("plugins:tier4", cfOut.stdout, "analysis reached T4");
+        deleteRecursively(cf);
     }
 
     // ---- catalog -----------------------------------------------------------

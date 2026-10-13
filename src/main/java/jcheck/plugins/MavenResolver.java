@@ -146,7 +146,8 @@ public final class MavenResolver {
 
     /** The default resolver: Maven Central, cached under the jcheck cache directory. */
     public static MavenResolver standard(boolean offline) {
-        return new MavenResolver(defaultCacheDir(), List.of(URI.create("https://repo1.maven.org/maven2/")), offline);
+        return new MavenResolver(defaultCacheDir().resolve("maven"),
+            List.of(URI.create("https://repo1.maven.org/maven2/")), offline);
     }
 
     /** {@code $JCHECK_CACHE_DIR} or {@code ~/.cache/jcheck}. */

@@ -48,6 +48,10 @@ public final class CheckOptions {
     public final List<String> errorProneDisabled;
     /** Analyzer jars already resolved by the caller; empty means the plugin is unavailable. */
     public final List<Path> pluginJars;
+    /** Checker Framework checker names to run at T4, in order. */
+    public final List<String> checkerNames;
+    /** Checker Framework jars already resolved by the caller; empty means T4 is unavailable. */
+    public final List<Path> checkerJars;
     /** Tool-level notes the caller wants rendered alongside the engine's own. */
     public final List<String> toolNotes;
 
@@ -80,6 +84,8 @@ public final class CheckOptions {
         this.nullnessPackages = Collections.unmodifiableList(new ArrayList<>(b.nullnessPackages));
         this.errorProneDisabled = Collections.unmodifiableList(new ArrayList<>(b.errorProneDisabled));
         this.pluginJars = Collections.unmodifiableList(new ArrayList<>(b.pluginJars));
+        this.checkerNames = Collections.unmodifiableList(new ArrayList<>(b.checkerNames));
+        this.checkerJars = Collections.unmodifiableList(new ArrayList<>(b.checkerJars));
         this.toolNotes = Collections.unmodifiableList(new ArrayList<>(b.toolNotes));
     }
 
@@ -147,6 +153,8 @@ public final class CheckOptions {
         private final List<String> nullnessPackages = new ArrayList<>();
         private final List<String> errorProneDisabled = new ArrayList<>();
         private final List<Path> pluginJars = new ArrayList<>();
+        private final List<String> checkerNames = new ArrayList<>();
+        private final List<Path> checkerJars = new ArrayList<>();
         private final List<String> toolNotes = new ArrayList<>();
 
         public Builder source(Path p) {
@@ -286,6 +294,18 @@ public final class CheckOptions {
         public Builder pluginJars(List<Path> v) {
             this.pluginJars.clear();
             this.pluginJars.addAll(v);
+            return this;
+        }
+
+        public Builder checkerNames(List<String> v) {
+            this.checkerNames.clear();
+            this.checkerNames.addAll(v);
+            return this;
+        }
+
+        public Builder checkerJars(List<Path> v) {
+            this.checkerJars.clear();
+            this.checkerJars.addAll(v);
             return this;
         }
 

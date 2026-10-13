@@ -155,6 +155,11 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   `classpath` list, a `file:` repository, or `--offline` avoids the network. Both need
   `--add-exports` on the JVM running javac, so they run in a forked JVM and report through the same
   diagnostic model and catalog (`J04xx` Error Prone, `J05xx` NullAway) as everything else.
+- **Checker Framework (T4)** — attached when `[checkers.per-module]` or
+  `[nullness] checker_framework` is set. Each configured checker runs as its own
+  annotation-processor pass in the forked JVM, so a diagnostic is attributed to the checker that
+  produced it instead of being guessed from a message key; the catalog maps them to `J0509`–`J0515`.
+  Applied to the whole compilation rather than per module, which the tier line states.
 - **Daemon** — length-prefixed binary protocol over a Unix domain socket, keyed by a hash of the
   project root so serving a project never writes into it. `jcheck check` uses a running daemon
   automatically and falls back in-process.
@@ -179,8 +184,8 @@ overstate itself:
 - **Gradle Tooling API / Maven resolution** is not driven. The build tool is detected, and
   `jcheck build`/`test`/`fmt` delegate to it, but the dependency graph is not read, so third-party
   types can appear unresolved. jcheck says so on every run where that applies.
-- **Checker Framework (T4) and SpotBugs (T5)** are not wired up; `[checkers.per-module]` and
-  `[bytecode]` parse and are reflected in the tier line, but never run.
+- **SpotBugs (T5)** is not wired up; `[bytecode]` parses and is reflected in the tier line, but no
+  bytecode analysis runs, and the tier line says so rather than claiming a quiet T5.
 - **No `jcheck-junit` extension** — timeouts, thread-leak and fd-leak detection are not built;
   `jcheck test` parses JUnit XML produced by the build tool.
 - **No incremental dependents graph, PIT, JaCoCo, jcstress/Lincheck, Infer, or LSP bridge.**
@@ -194,8 +199,9 @@ Built and tested on **JDK 20** because that is what is installed here; SPEC.md a
 domain sockets), but the JDK-21 baseline in the spec matters for the *checked code*: pattern
 switch exhaustiveness and `-Xlint:this-escape` need 21+. UI goldens embed javac's own message
 wording, which is the reason SPEC.md lists a JDK matrix as a test dimension. The attached plugins
-are pinned to Error Prone **2.24.1** and NullAway **0.10.18** (with NullAway's `dataflow-nullaway`
-and JSpecify pulled in transitively), which are the versions verified against JDK 20 here.
+are pinned to Error Prone **2.24.1**, NullAway **0.10.18** (with NullAway's `dataflow-nullaway` and
+JSpecify pulled in transitively) and the Checker Framework **3.42.0**, which are the versions
+verified against JDK 20 here. All three are configurable in `jcheck.toml`.
 
 ## Layout
 

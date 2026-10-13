@@ -227,10 +227,16 @@ public final class McpResources {
             sb.append(" |\n");
         }
         sb.append("| T4 checker-framework | ")
-          .append(config.anyCheckerConfigured() ? "configured but not wired up" : "not configured")
-          .append(" | the Checker Framework is not driven by this build |\n");
+          .append(config.anyCheckerConfigured() ? "runs" : "not configured");
+        if (config.anyCheckerConfigured()) {
+            sb.append(" | ").append(String.join(", ", config.checkerNames()))
+              .append("; applied to the whole compilation, not per module");
+        } else {
+            sb.append(" | enable [checkers.per-module] or [nullness] checker_framework to attach it");
+        }
+        sb.append(" |\n");
         sb.append("| T5 bytecode tools | ")
-          .append(config.spotbugs ? "configured but not wired up" : "not configured")
+          .append(config.spotbugs ? "configured but not implemented" : "not configured")
           .append(" | SpotBugs analysis is not driven by this build |\n\n");
 
         sb.append("## Where the guarantee ends\n\n");

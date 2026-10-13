@@ -180,6 +180,25 @@ public final class CheckCommand {
             }
         }
 
+        // The Checker Framework is opt-in per module; without module support it runs on the whole
+        // compilation, which the tier line states rather than implying per-module scoping.
+        boolean checkers = config.anyCheckerConfigured();
+        List<Path> checkerJars = List.of();
+        if (checkers) {
+            try {
+                PluginClasspath.Result cf = PluginClasspath.resolveCoordinates(
+                    List.of("org.checkerframework:checker:" + config.checkerVersion),
+                    config.pluginClasspath, root,
+                    config.pluginOffline || req.pluginOffline, config.pluginRepo);
+                checkerJars = cf.processorPath;
+                pluginNotes.addAll(cf.notes);
+                classpath.addAll(cf.compileExtra);
+            } catch (RuntimeException e) {
+                pluginNotes.add("the Checker Framework is configured but its jars could not be "
+                    + "resolved: " + e.getMessage());
+            }
+        }
+
         CheckOptions.Builder ob = CheckOptions.builder()
             .rootDir(root.toString())
             .profile(profile)
@@ -203,6 +222,9 @@ public final class CheckCommand {
             .nullnessPackages(config.nullnessPackages)
             .errorProneDisabled(config.errorProneDisabled)
             .pluginJars(pluginJars)
+            .checkerFramework(checkers)
+            .checkerNames(config.checkerNames())
+            .checkerJars(checkerJars)
             .toolNotes(pluginNotes)
             .toolNotes(model.notes);
 
