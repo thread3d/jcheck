@@ -52,6 +52,12 @@ public final class CheckOptions {
     public final List<String> checkerNames;
     /** Checker Framework jars already resolved by the caller; empty means T4 is unavailable. */
     public final List<Path> checkerJars;
+    /** SpotBugs jars already resolved by the caller; empty means T5 is unavailable. */
+    public final List<Path> spotbugsJars;
+    /** SpotBugs effort: min, default or max. */
+    public final String spotbugsEffort;
+    /** SpotBugs priority threshold: high, medium or low. */
+    public final String spotbugsThreshold;
     /** Tool-level notes the caller wants rendered alongside the engine's own. */
     public final List<String> toolNotes;
 
@@ -86,6 +92,9 @@ public final class CheckOptions {
         this.pluginJars = Collections.unmodifiableList(new ArrayList<>(b.pluginJars));
         this.checkerNames = Collections.unmodifiableList(new ArrayList<>(b.checkerNames));
         this.checkerJars = Collections.unmodifiableList(new ArrayList<>(b.checkerJars));
+        this.spotbugsJars = Collections.unmodifiableList(new ArrayList<>(b.spotbugsJars));
+        this.spotbugsEffort = blank(b.spotbugsEffort) ? "max" : b.spotbugsEffort;
+        this.spotbugsThreshold = blank(b.spotbugsThreshold) ? "medium" : b.spotbugsThreshold;
         this.toolNotes = Collections.unmodifiableList(new ArrayList<>(b.toolNotes));
     }
 
@@ -155,6 +164,9 @@ public final class CheckOptions {
         private final List<Path> pluginJars = new ArrayList<>();
         private final List<String> checkerNames = new ArrayList<>();
         private final List<Path> checkerJars = new ArrayList<>();
+        private final List<Path> spotbugsJars = new ArrayList<>();
+        private String spotbugsEffort;
+        private String spotbugsThreshold;
         private final List<String> toolNotes = new ArrayList<>();
 
         public Builder source(Path p) {
@@ -306,6 +318,22 @@ public final class CheckOptions {
         public Builder checkerJars(List<Path> v) {
             this.checkerJars.clear();
             this.checkerJars.addAll(v);
+            return this;
+        }
+
+        public Builder spotbugsJars(List<Path> v) {
+            this.spotbugsJars.clear();
+            this.spotbugsJars.addAll(v);
+            return this;
+        }
+
+        public Builder spotbugsEffort(String v) {
+            this.spotbugsEffort = v;
+            return this;
+        }
+
+        public Builder spotbugsThreshold(String v) {
+            this.spotbugsThreshold = v;
             return this;
         }
 

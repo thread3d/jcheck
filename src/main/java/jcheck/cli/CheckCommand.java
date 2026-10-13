@@ -199,6 +199,28 @@ public final class CheckCommand {
             }
         }
 
+        // SpotBugs runs on the class files the check compile produced, so its jars are resolved the
+        // same way; FindSecBugs is added as a SpotBugs plugin when requested.
+        List<Path> spotbugsJars = List.of();
+        if (config.spotbugs) {
+            List<String> coordinates = new ArrayList<>();
+            coordinates.add("com.github.spotbugs:spotbugs:" + config.spotbugsVersion);
+            if (config.findsecbugs) {
+                coordinates.add("com.h3xstream.findsecbugs:findsecbugs-plugin:"
+                    + config.findsecbugsVersion);
+            }
+            try {
+                PluginClasspath.Result sb = PluginClasspath.resolveCoordinates(coordinates,
+                    config.pluginClasspath, root,
+                    config.pluginOffline || req.pluginOffline, config.pluginRepo);
+                spotbugsJars = sb.processorPath;
+                pluginNotes.addAll(sb.notes);
+            } catch (RuntimeException e) {
+                pluginNotes.add("SpotBugs is enabled but its jars could not be resolved: "
+                    + e.getMessage());
+            }
+        }
+
         CheckOptions.Builder ob = CheckOptions.builder()
             .rootDir(root.toString())
             .profile(profile)
@@ -225,12 +247,12 @@ public final class CheckCommand {
             .checkerFramework(checkers)
             .checkerNames(config.checkerNames())
             .checkerJars(checkerJars)
+            .spotbugs(config.spotbugs)
+            .spotbugsJars(spotbugsJars)
+            .spotbugsEffort(config.spotbugsEffort)
+            .spotbugsThreshold(config.spotbugsThreshold)
             .toolNotes(pluginNotes)
             .toolNotes(model.notes);
-
-        if (config.spotbugs) {
-            ob.toolNote("spotbugs is enabled in jcheck.toml but bytecode analysis is not wired up; T5 did not run");
-        }
 
         try {
             CheckReport report = Engine.run(ob.build());

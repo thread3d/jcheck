@@ -160,6 +160,11 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   annotation-processor pass in the forked JVM, so a diagnostic is attributed to the checker that
   produced it instead of being guessed from a message key; the catalog maps them to `J0509`–`J0515`.
   Applied to the whole compilation rather than per module, which the tier line states.
+- **SpotBugs (T5)** — attached when `[bytecode] spotbugs` is set. It runs over the class files the
+  check compile produced, as its own process, and is asked for SARIF so the human message and source
+  region survive; with FindSecBugs enabled its plugin jar is loaded too. Patterns map through the
+  SpotBugs catalog to `J04xx`. If the compile produced no class files, T5 says so rather than
+  reporting a quiet clean.
 - **Daemon** — length-prefixed binary protocol over a Unix domain socket, keyed by a hash of the
   project root so serving a project never writes into it. `jcheck check` uses a running daemon
   automatically and falls back in-process.
@@ -184,8 +189,6 @@ overstate itself:
 - **Gradle Tooling API / Maven resolution** is not driven. The build tool is detected, and
   `jcheck build`/`test`/`fmt` delegate to it, but the dependency graph is not read, so third-party
   types can appear unresolved. jcheck says so on every run where that applies.
-- **SpotBugs (T5)** is not wired up; `[bytecode]` parses and is reflected in the tier line, but no
-  bytecode analysis runs, and the tier line says so rather than claiming a quiet T5.
 - **No `jcheck-junit` extension** — timeouts, thread-leak and fd-leak detection are not built;
   `jcheck test` parses JUnit XML produced by the build tool.
 - **No incremental dependents graph, PIT, JaCoCo, jcstress/Lincheck, Infer, or LSP bridge.**
@@ -200,8 +203,8 @@ domain sockets), but the JDK-21 baseline in the spec matters for the *checked co
 switch exhaustiveness and `-Xlint:this-escape` need 21+. UI goldens embed javac's own message
 wording, which is the reason SPEC.md lists a JDK matrix as a test dimension. The attached plugins
 are pinned to Error Prone **2.24.1**, NullAway **0.10.18** (with NullAway's `dataflow-nullaway` and
-JSpecify pulled in transitively) and the Checker Framework **3.42.0**, which are the versions
-verified against JDK 20 here. All three are configurable in `jcheck.toml`.
+JSpecify pulled in transitively), the Checker Framework **3.42.0** and SpotBugs **4.8.6**, which are
+the versions verified against JDK 20 here. All of them are configurable in `jcheck.toml`.
 
 ## Layout
 

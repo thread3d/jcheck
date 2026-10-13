@@ -171,10 +171,13 @@ public final class MavenResolver {
      */
     public List<Path> resolve(List<String> coordinates) {
         Set<String> visited = new LinkedHashSet<>();
+        Set<String> roots = new LinkedHashSet<>();
         Deque<Gav> queue = new ArrayDeque<>();
         List<Path> jars = new ArrayList<>();
         for (String c : coordinates) {
-            queue.add(Gav.parse(c));
+            Gav gav = Gav.parse(c);
+            roots.add(gav.toString());
+            queue.add(gav);
         }
         while (!queue.isEmpty()) {
             Gav gav = queue.poll();
@@ -184,11 +187,13 @@ public final class MavenResolver {
             try {
                 RawPom raw = readPom(gav);
                 Effective effective = effective(gav, raw);
-                if (!"pom".equals(raw.packaging)) {
+                // A few artifacts (SpotBugs among them) declare pom packaging but publish the jar
+                // a caller explicitly asked for, so a root coordinate always gets a jar attempt.
+                if (!"pom".equals(raw.packaging) || roots.contains(gav.toString())) {
                     Path jar = artifact(gav, "jar", null, false);
                     if (jar != null) {
                         jars.add(jar);
-                    } else {
+                    } else if (!"pom".equals(raw.packaging)) {
                         notes.add("no jar published for " + gav + "; skipped");
                     }
                 }

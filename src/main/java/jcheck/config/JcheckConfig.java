@@ -53,6 +53,10 @@ public final class JcheckConfig {
     public boolean spotbugs = false;
     public String spotbugsEffort = "max";
     public String spotbugsThreshold = "medium";
+    /** SpotBugs version to resolve from Maven Central when no explicit classpath is given. */
+    public String spotbugsVersion = "4.8.6";
+    /** FindSecBugs version, added as a SpotBugs plugin when {@link #findsecbugs} is true. */
+    public String findsecbugsVersion = "1.13.0";
     public boolean findsecbugs = true;
     public boolean infer = false;
     public int testTimeoutSeconds = 10;
@@ -135,7 +139,9 @@ public final class JcheckConfig {
             c.spotbugs = true;
             c.spotbugsEffort = Toml.str(sb, "effort", c.spotbugsEffort);
             c.spotbugsThreshold = Toml.str(sb, "threshold", c.spotbugsThreshold);
+            c.spotbugsVersion = Toml.str(sb, "version", c.spotbugsVersion);
             c.findsecbugs = Toml.bool(sb, "findsecbugs", c.findsecbugs);
+            c.findsecbugsVersion = Toml.str(sb, "findsecbugs_version", c.findsecbugsVersion);
         } else {
             c.spotbugs = Toml.bool(bytecode, "spotbugs", false);
         }

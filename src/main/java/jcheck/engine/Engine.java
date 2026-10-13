@@ -19,6 +19,7 @@ import jcheck.model.Tier;
 import jcheck.model.TierReport;
 import jcheck.plugins.CheckerFrameworkRunner;
 import jcheck.plugins.ErrorProneRunner;
+import jcheck.plugins.SpotBugsRunner;
 
 /**
  * The one place findings are merged: run the tiers, dedupe, drop cascades, apply the level
@@ -40,7 +41,7 @@ public final class Engine {
         if (opts.sources.isEmpty()) {
             configErrors.add("no Java sources found; pass --sources or configure the project source roots");
             return new CheckReport(List.of(), List.of(), List.of(),
-                tierReport(opts, false, Integer.MAX_VALUE, false, false), toolNotes, configErrors);
+                tierReport(opts, false, Integer.MAX_VALUE, false, false, false), toolNotes, configErrors);
         }
 
         JavacRunner.Result run = JavacRunner.run(opts, catalog);
@@ -84,6 +85,7 @@ public final class Engine {
          */
         boolean t3Ran = false;
         boolean t4Ran = false;
+        boolean t5Ran = false;
         if (blockingTier > Tier.T2) {
             t3Ran = opts.nativeChecks;
             if (opts.errorProne) {
@@ -98,6 +100,12 @@ public final class Engine {
                 all.addAll(checkers.diagnostics);
                 toolNotes.addAll(checkers.notes);
                 t4Ran = checkers.ran;
+            }
+            if (opts.spotbugs) {
+                SpotBugsRunner.Result bytecode = SpotBugsRunner.run(opts, catalog, new SpanResolver());
+                all.addAll(bytecode.diagnostics);
+                toolNotes.addAll(bytecode.notes);
+                t5Ran = bytecode.ran;
             }
         }
 
@@ -127,7 +135,7 @@ public final class Engine {
             }
         }
 
-        TierReport tiers = tierReport(opts, anyErrors, blockingTier, t3Ran, t4Ran);
+        TierReport tiers = tierReport(opts, anyErrors, blockingTier, t3Ran, t4Ran, t5Ran);
         return new CheckReport(
             relativize(gated, opts.rootDir),
             relativize(dropped, opts.rootDir),
@@ -138,7 +146,7 @@ public final class Engine {
     }
 
     private static TierReport tierReport(CheckOptions opts, boolean anyErrors, int blockingTier,
-                                         boolean t3Ran, boolean t4Ran) {
+                                         boolean t3Ran, boolean t4Ran, boolean t5Ran) {
         List<TierReport.Entry> entries = new ArrayList<>();
         for (int t = 0; t <= Tier.MAX; t++) {
             boolean enabled = opts.tierEnabled(t);
@@ -156,10 +164,9 @@ public final class Engine {
             } else if (t == Tier.T4 && !t4Ran) {
                 ran = false;
                 note = "plugin unavailable";
-            } else if (t == Tier.T5) {
-                // Bytecode analysis is not wired up yet; never claim it ran.
+            } else if (t == Tier.T5 && !t5Ran) {
                 ran = false;
-                note = "not implemented";
+                note = "plugin unavailable";
             } else {
                 ran = true;
             }

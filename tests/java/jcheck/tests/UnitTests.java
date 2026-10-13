@@ -201,6 +201,24 @@ final class UnitTests {
         contains("plugins:checker-source", cfOut.stdout, "source: checker");
         contains("plugins:tier4", cfOut.stdout, "analysis reached T4");
         deleteRecursively(cf);
+
+        Path sb = Files.createTempDirectory("jcheck-spotbugs-it-");
+        Path sbSrc = sb.resolve("src/main/java/demo");
+        Files.createDirectories(sbSrc);
+        Files.writeString(sbSrc.resolve("Sb.java"),
+            "package demo;\n"
+            + "public class Sb {\n"
+            + "    String decode(byte[] b) {\n"
+            + "        return new String(b);\n"
+            + "    }\n"
+            + "}\n", StandardCharsets.UTF_8);
+        Files.writeString(sb.resolve("jcheck.toml"),
+            "[bytecode]\nspotbugs = { effort = \"max\", threshold = \"low\", findsecbugs = false }\n",
+            StandardCharsets.UTF_8);
+        CheckCommand.Outcome sbOut = TestMain.runCase(sb, "check --profile standard");
+        contains("plugins:spotbugs-report", sbOut.stdout, "source: spotbugs");
+        contains("plugins:tier5", sbOut.stdout, "analysis reached T5");
+        deleteRecursively(sb);
     }
 
     // ---- catalog -----------------------------------------------------------

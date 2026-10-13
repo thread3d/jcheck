@@ -236,8 +236,18 @@ public final class McpResources {
         }
         sb.append(" |\n");
         sb.append("| T5 bytecode tools | ")
-          .append(config.spotbugs ? "configured but not implemented" : "not configured")
-          .append(" | SpotBugs analysis is not driven by this build |\n\n");
+          .append(config.spotbugs ? "runs" : "not configured")
+          .append(" | ");
+        if (config.spotbugs) {
+            sb.append("SpotBugs ").append(config.spotbugsEffort).append("/")
+              .append(config.spotbugsThreshold);
+            if (config.findsecbugs) {
+                sb.append(" with FindSecBugs");
+            }
+        } else {
+            sb.append("enable [bytecode] spotbugs to attach SpotBugs");
+        }
+        sb.append(" |\n\n");
 
         sb.append("## Where the guarantee ends\n\n");
         sb.append("- Only T0-T2 are backed by the compiler. Any claim beyond that is limited to the "
