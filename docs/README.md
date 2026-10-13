@@ -20,6 +20,11 @@ the headlines, labels and help lines live in the TSV resources under
 | J0467 | AmbiguousOverload | T2 flow | warn |
 | J0468 | ThisEscape | T2 flow | warn |
 | J0469 | ThisEscapeLocation | T2 flow | warn |
+| J0470 | LossOfPrecision | T2 flow | warn |
+| J0471 | LeaksNotAccessibleUnexported | T2 flow | warn |
+| J0472 | DeprecatedForRemoval | T2 flow | warn |
+| J0473 | RedundantCast | T2 flow | warn |
+| J0474 | UncheckedMethodInvocation | T2 flow | warn |
 | J0301 | UncheckedArithmetic | T3 jcheck-checks | deny in `@Checked` |
 | J0302 | LossyCast | T3 jcheck-checks | deny |
 | J0601 | SharedMutableWithoutGuard | T3 jcheck-checks | deny in `@ThreadSafe` |

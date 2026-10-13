@@ -74,12 +74,12 @@ public final class FixCommand {
             }
         }
 
-        List<String> rewriteChanged = new ArrayList<>();
+        List<OpenRewriteRunner.Change> rewriteChanged = new ArrayList<>();
         if (wantRewrite && model != null) {
             OpenRewriteRunner.Result rewritten = OpenRewriteRunner.run(root, config, sources,
                 model.classpath);
             notes.addAll(rewritten.notes);
-            rewriteChanged.addAll(rewritten.changedFiles);
+            rewriteChanged.addAll(rewritten.changes);
         }
 
         if (result.applied.isEmpty() && !patched && rewriteChanged.isEmpty()) {
@@ -117,8 +117,10 @@ public final class FixCommand {
             sb.append("  ").append(a.file).append(": ").append(a.editCount)
               .append(" edit(s) [").append(a.code).append("]\n");
         }
-        for (String file : rewriteChanged) {
-            sb.append("  ").append(file).append(": rewritten\n");
+        for (OpenRewriteRunner.Change change : rewriteChanged) {
+            sb.append("  ").append(change.file).append(": [")
+              .append(rewriteCode(change.recipe)).append("] ")
+              .append(simpleName(change.recipe)).append('\n');
         }
         for (String n : notes) {
             sb.append("  note: ").append(n).append('\n');
@@ -159,6 +161,18 @@ public final class FixCommand {
             notes.add("Error Prone patch mode failed: " + e.getMessage());
             return false;
         }
+    }
+
+    /** The catalog code for a recipe, or the generic rewrite code. */
+    static String rewriteCode(String recipe) {
+        jcheck.catalog.Catalog catalog = jcheck.catalog.Catalog.loadDefault();
+        jcheck.catalog.CatalogEntry entry = catalog.lookup("openrewrite", recipe);
+        return entry != null ? entry.code() : catalog.codeFor("openrewrite", "OpenRewriteRecipe");
+    }
+
+    static String simpleName(String recipe) {
+        int dot = recipe.lastIndexOf('.');
+        return dot < 0 ? recipe : recipe.substring(dot + 1);
     }
 
     private static Map<String, String> snapshot(List<Path> sources) {

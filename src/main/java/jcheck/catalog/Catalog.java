@@ -23,7 +23,8 @@ public final class Catalog {
 
     /** Resource names loaded by {@link #loadDefault()}, in order. */
     public static final List<String> DEFAULT_RESOURCES = List.of(
-        "javac.tsv", "errorprone.tsv", "nullaway.tsv", "checker.tsv", "spotbugs.tsv", "jcheck.tsv");
+        "javac.tsv", "errorprone.tsv", "nullaway.tsv", "checker.tsv", "spotbugs.tsv",
+        "openrewrite.tsv", "jcheck.tsv");
 
     private static final String RESOURCE_DIR = "/jcheck/catalog/";
 

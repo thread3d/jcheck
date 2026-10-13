@@ -35,15 +35,26 @@ import jcheck.config.JcheckConfig;
  */
 public final class OpenRewriteRunner {
 
+    /** One file changed by one recipe. */
+    public static final class Change {
+        public final String file;
+        public final String recipe;
+
+        public Change(String file, String recipe) {
+            this.file = file;
+            this.recipe = recipe;
+        }
+    }
+
     /** Outcome of one recipe run. */
     public static final class Result {
-        /** Files the recipes changed, in the order they were reported. */
-        public final List<String> changedFiles;
+        /** Files the recipes changed, one entry per file and recipe. */
+        public final List<Change> changes;
         public final List<String> notes;
         public final boolean ran;
 
-        Result(List<String> changedFiles, List<String> notes, boolean ran) {
-            this.changedFiles = List.copyOf(changedFiles);
+        Result(List<Change> changes, List<String> notes, boolean ran) {
+            this.changes = List.copyOf(changes);
             this.notes = List.copyOf(notes);
             this.ran = ran;
         }
@@ -126,20 +137,21 @@ public final class OpenRewriteRunner {
                 notes.add("OpenRewrite did not finish within 30 minutes");
                 return new Result(List.of(), notes, false);
             }
-            List<String> changed = new ArrayList<>();
+            List<Change> changes = new ArrayList<>();
             for (String line : Files.readAllLines(log, StandardCharsets.UTF_8)) {
                 Matcher m = CHANGE.matcher(line.strip());
-                if (m.matches() && !changed.contains(m.group(1))) {
-                    changed.add(m.group(1));
+                if (m.matches()) {
+                    changes.add(new Change(m.group(1), m.group(2)));
                 }
             }
-            notes.add("OpenRewrite: " + changed.size() + " file(s) changed by "
+            long files = changes.stream().map(c -> c.file).distinct().count();
+            notes.add("OpenRewrite: " + files + " file(s) changed by "
                 + config.rewriteRecipes.size() + " recipe(s)");
-            if (changed.isEmpty() && process.exitValue() != 0) {
+            if (changes.isEmpty() && process.exitValue() != 0) {
                 notes.add("OpenRewrite exited " + process.exitValue() + ": " + firstLine(log));
                 return new Result(List.of(), notes, false);
             }
-            return new Result(changed, notes, true);
+            return new Result(changes, notes, true);
         } catch (IOException e) {
             notes.add("OpenRewrite could not be started: " + e.getMessage());
             return new Result(List.of(), notes, false);

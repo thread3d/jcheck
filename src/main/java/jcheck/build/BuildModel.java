@@ -1,9 +1,14 @@
 package jcheck.build;
 
 import java.io.IOException;
+import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -18,6 +23,10 @@ import jcheck.config.JcheckConfig;
  * graph is not driven yet, so the classpath comes from explicit configuration, {@code lib/}
  * and known build output directories. Every such limitation is reported in {@link #notes}
  * rather than silently producing a wrong result.
+ *
+ * <p>Multi-module layouts are found by walking for {@code src/main/java} roots under a module
+ * directory, so a Gradle or Maven build with {@code module-a/} and {@code module-b/} is analysed as
+ * one project without configuring every module by hand.
  */
 public final class BuildModel {
 
@@ -88,6 +97,15 @@ public final class BuildModel {
                 if (Files.isDirectory(p)) {
                     candidates.add(p);
                 }
+            }
+            List<Path> moduleRoots = moduleSourceRoots(absRoot);
+            for (Path p : moduleRoots) {
+                if (!candidates.contains(p)) {
+                    candidates.add(p);
+                }
+            }
+            if (!moduleRoots.isEmpty()) {
+                info.add("module source roots: " + relativeAll(absRoot, moduleRoots));
             }
             if (candidates.isEmpty()) {
                 candidates.add(absRoot);
@@ -252,6 +270,45 @@ public final class BuildModel {
             }
         }
         return false;
+    }
+
+    /**
+     * Source roots of sub-projects: any directory within five levels that has its own
+     * {@code src/main/java} (or the other candidates). Build outputs, VCS metadata and hidden
+     * directories are pruned so a large tree is not walked for nothing.
+     */
+    static List<Path> moduleSourceRoots(Path root) {
+        List<Path> roots = new ArrayList<>();
+        try {
+            Files.walkFileTree(root, EnumSet.noneOf(FileVisitOption.class), 5,
+                new SimpleFileVisitor<Path>() {
+                    @Override
+                    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                        if (dir.equals(root)) {
+                            return FileVisitResult.CONTINUE;
+                        }
+                        String name = dir.getFileName() == null ? "" : dir.getFileName().toString();
+                        if (SKIP_DIRS.contains(name) || name.startsWith(".")) {
+                            return FileVisitResult.SKIP_SUBTREE;
+                        }
+                        for (String candidate : SOURCE_ROOT_CANDIDATES) {
+                            Path p = dir.resolve(candidate);
+                            if (Files.isDirectory(p) && !roots.contains(p)) {
+                                roots.add(p);
+                            }
+                        }
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+        } catch (IOException ignored) {
+            // an unreadable subtree simply contributes no module roots
+        }
+        return roots;
     }
 
     private static String relativeAll(Path root, List<Path> paths) {

@@ -54,28 +54,41 @@ public final class RewriteRunner {
             builder.classpath(args[3].split(File.pathSeparator));
         }
         JavaParser parser = builder.build();
-        List<SourceFile> sources = parser.parse(paths, base, ctx).toList();
+        List<SourceFile> current = new ArrayList<>(parser.parse(paths, base, ctx).toList());
 
         Environment environment = Environment.builder().scanRuntimeClasspath().build();
-        Recipe recipe = environment.activateRecipes(recipes.toArray(new String[0]));
-        for (Result result : recipe
-                .run(new org.openrewrite.internal.InMemoryLargeSourceSet(sources), ctx)
-                .getChangeset().getAllResults()) {
-            SourceFile after = result.getAfter();
-            if (after == null) {
-                continue;
+        /*
+         * One recipe per pass, rather than one composite: a composite reports itself as
+         * "CompositeRecipe", which would lose which recipe made each change. Passing each changed
+         * file's new state to the next pass lets the recipes compose in the order given.
+         */
+        for (String recipeName : recipes) {
+            Recipe recipe = environment.activateRecipes(recipeName);
+            List<Result> results = recipe
+                .run(new org.openrewrite.internal.InMemoryLargeSourceSet(current), ctx)
+                .getChangeset().getAllResults();
+            for (Result result : results) {
+                SourceFile after = result.getAfter();
+                if (after == null) {
+                    continue;
+                }
+                String before = result.getBefore() == null ? "" : result.getBefore().printAll();
+                String updated = after.printAll();
+                if (updated.equals(before)) {
+                    continue;
+                }
+                Path target = Path.of(after.getSourcePath().toString());
+                if (!target.isAbsolute()) {
+                    target = base.resolve(target);
+                }
+                Files.writeString(target, updated);
+                System.out.println("CHANGED\t" + target + "\t" + recipeName);
+                for (int i = 0; i < current.size(); i++) {
+                    if (current.get(i).getSourcePath().equals(after.getSourcePath())) {
+                        current.set(i, after);
+                    }
+                }
             }
-            String before = result.getBefore() == null ? "" : result.getBefore().printAll();
-            String updated = after.printAll();
-            if (updated.equals(before)) {
-                continue;
-            }
-            Path target = Path.of(after.getSourcePath().toString());
-            if (!target.isAbsolute()) {
-                target = base.resolve(target);
-            }
-            Files.writeString(target, updated);
-            System.out.println("CHANGED\t" + target + "\t" + recipe.getName());
         }
     }
 }

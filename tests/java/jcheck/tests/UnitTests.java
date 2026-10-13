@@ -32,6 +32,7 @@ import jcheck.cli.CheckRequest;
 import jcheck.cli.FixCommand;
 import jcheck.cli.InferCommand;
 import jcheck.cli.JcstressCommand;
+import jcheck.cli.RewriteCommand;
 import jcheck.config.JcheckConfig;
 import jcheck.config.Toml;
 import jcheck.daemon.Daemon;
@@ -97,6 +98,7 @@ final class UnitTests {
         buildModelTests();
         dependencyResolverTests();
         incrementalPlanTests();
+        multiModuleTests();
         mavenResolverTests();
         suggestionRoundTripTests();
         daemonTests();
@@ -291,8 +293,46 @@ final class UnitTests {
         deleteRecursively(work);
     }
 
-    // ---- real-project corpus ------------------------------------------------
+    // ---- multi-module builds -------------------------------------------------
 
+    /**
+     * A Gradle or Maven project with several modules has no root {@code src/main/java}; the model
+     * must still find every module's sources rather than reporting that there are none.
+     */
+    private static void multiModuleTests() throws Exception {
+        Path tmp = Files.createTempDirectory("jcheck-modules-");
+        Path a = tmp.resolve("module-a/src/main/java/demo");
+        Path b = tmp.resolve("module-b/src/main/java/demo");
+        Path c = tmp.resolve("group/module-c/src/main/java/demo");
+        Path t = tmp.resolve("module-b/src/test/java/demo");
+        for (Path dir : List.of(a, b, c, t)) {
+            Files.createDirectories(dir);
+        }
+        Files.writeString(a.resolve("A.java"), "package demo;\npublic final class A {}\n");
+        Files.writeString(b.resolve("B.java"), "package demo;\npublic final class B {}\n");
+        Files.writeString(c.resolve("C.java"), "package demo;\npublic final class C {}\n");
+        Files.writeString(t.resolve("BTest.java"), "package demo;\npublic final class BTest {}\n");
+        // A build output must be pruned, not treated as a module.
+        Path built = tmp.resolve("module-a/build/src/main/java/demo");
+        Files.createDirectories(built);
+        Files.writeString(built.resolve("Generated.java"), "package demo;\npublic final class Generated {}\n");
+
+        try {
+            JcheckConfig config = JcheckConfig.load(tmp);
+            BuildModel model = BuildModel.resolve(tmp, config, null, null, null, null);
+            List<String> names = model.sources.stream()
+                .map(p -> p.getFileName().toString()).sorted().toList();
+            check("modules:a", names.contains("A.java"), names.toString());
+            check("modules:b", names.contains("B.java"), names.toString());
+            check("modules:nested", names.contains("C.java"), names.toString());
+            check("modules:test", names.contains("BTest.java"), names.toString());
+            check("modules:prunes-build", !names.contains("Generated.java"), names.toString());
+        } finally {
+            deleteRecursively(tmp);
+        }
+    }
+
+    // ---- real-project corpus ------------------------------------------------
     /**
      * Runs the T3 pack over a real library's sources — Apache Commons Lang's own `-sources` jar —
      * and records diagnostics per kLOC. This is the false-positive guard the curated cases cannot
@@ -304,65 +344,86 @@ final class UnitTests {
             return;
         }
         MavenResolver resolver = MavenResolver.standard(false);
-        List<Path> jars = resolver.resolve(List.of("org.apache.commons:commons-lang3:3.14.0:sources"));
-        if (jars.isEmpty()) {
-            return;
+        List<String> coordinates = List.of(
+            "org.apache.commons:commons-lang3:3.14.0:sources",
+            "com.google.code.gson:gson:2.10.1:sources",
+            "org.apache.commons:commons-collections4:4.4:sources");
+        int libraries = 0;
+        int totalDiagnostics = 0;
+        long totalLines = 0;
+        int totalUncatalogued = 0;
+        for (String coordinate : coordinates) {
+            List<Path> jars = resolver.resolve(List.of(coordinate));
+            if (jars.isEmpty()) {
+                continue;
+            }
+            String label = coordinate.split(":")[1];
+            Path dir = Files.createTempDirectory("jcheck-corpus-");
+            try {
+                extractSources(jars.get(0), dir);
+                CheckRequest req = new CheckRequest();
+                req.root = dir.toString();
+                req.profile = "standard";
+                CheckCommand.Analysis analysis = CheckCommand.analyze(req);
+                check("corpus:analyzes:" + label, analysis.ok(), analysis.error);
+                if (!analysis.ok()) {
+                    continue;
+                }
+                check("corpus:tier3:" + label, analysis.report.tiers.ran(Tier.T3),
+                    "the T3 pack did not run over " + label);
+                int count = analysis.report.diagnostics.size();
+                int uncatalogued = 0;
+                for (jcheck.model.Diagnostic d : analysis.report.diagnostics) {
+                    if (d.code.startsWith("J9")) {
+                        uncatalogued++;
+                    }
+                }
+                long lines = 0;
+                try (var walk = Files.walk(dir)) {
+                    for (Path p : walk.filter(x -> x.toString().endsWith(".java")).toList()) {
+                        lines += Files.readAllLines(p).size();
+                    }
+                }
+                double perKloc = lines == 0 ? 0 : count * 1000.0 / lines;
+                check("corpus:has-findings:" + label, count > 0,
+                    "the pack found nothing in " + label + ", which is suspicious");
+                check("corpus:noise-budget:" + label, perKloc < 250,
+                    "diagnostics/kLOC=" + Math.round(perKloc) + " over " + lines + " lines");
+                System.out.println("corpus: " + label + " " + count + " diagnostics over " + lines
+                    + " lines (" + Math.round(perKloc) + "/kLOC), " + uncatalogued + " uncatalogued");
+                libraries++;
+                totalDiagnostics += count;
+                totalLines += lines;
+                totalUncatalogued += uncatalogued;
+            } finally {
+                deleteRecursively(dir);
+            }
         }
-        Path dir = Files.createTempDirectory("jcheck-corpus-");
-        try {
-            try (java.util.jar.JarFile jar = new java.util.jar.JarFile(jars.get(0).toFile())) {
-                java.util.Enumeration<java.util.jar.JarEntry> entries = jar.entries();
-                while (entries.hasMoreElements()) {
-                    java.util.jar.JarEntry entry = entries.nextElement();
-                    if (!entry.getName().endsWith(".java")) {
-                        continue;
-                    }
-                    Path target = dir.resolve(entry.getName());
-                    Files.createDirectories(target.getParent());
-                    try (java.io.InputStream in = jar.getInputStream(entry)) {
-                        Files.copy(in, target);
-                    }
-                }
-            }
+        check("corpus:libraries", libraries >= 3, "analyzed " + libraries + " libraries");
+        check("corpus:uncatalogued-none", totalUncatalogued == 0,
+            totalUncatalogued + " uncatalogued upstream key(s)");
+        double perKloc = totalLines == 0 ? 0 : totalDiagnostics * 1000.0 / totalLines;
+        check("corpus:total-noise-budget", perKloc < 250,
+            "diagnostics/kLOC=" + Math.round(perKloc));
+        System.out.println("corpus: " + libraries + " libraries, " + totalDiagnostics
+            + " diagnostics over " + totalLines + " lines (" + Math.round(perKloc) + "/kLOC)");
+    }
 
-            CheckRequest req = new CheckRequest();
-            req.root = dir.toString();
-            req.profile = "standard";
-            CheckCommand.Analysis analysis = CheckCommand.analyze(req);
-            check("corpus:analyzes", analysis.ok(), analysis.error);
-            if (!analysis.ok()) {
-                return;
-            }
-            check("corpus:tier3-ran", analysis.report.tiers.ran(Tier.T3),
-                "the T3 pack did not run over the corpus");
-            int count = analysis.report.diagnostics.size();
-            java.util.TreeMap<String, Integer> byCode = new java.util.TreeMap<>();
-            int uncatalogued = 0;
-            for (jcheck.model.Diagnostic d : analysis.report.diagnostics) {
-                byCode.merge(d.code, 1, Integer::sum);
-                if (d.code.startsWith("J9")) {
-                    uncatalogued++;
+    /** Extracts the {@code .java} entries of a jar into a directory. */
+    private static void extractSources(Path jar, Path dir) throws IOException {
+        try (java.util.jar.JarFile file = new java.util.jar.JarFile(jar.toFile())) {
+            java.util.Enumeration<java.util.jar.JarEntry> entries = file.entries();
+            while (entries.hasMoreElements()) {
+                java.util.jar.JarEntry entry = entries.nextElement();
+                if (!entry.getName().endsWith(".java")) {
+                    continue;
+                }
+                Path target = dir.resolve(entry.getName());
+                Files.createDirectories(target.getParent());
+                try (java.io.InputStream in = file.getInputStream(entry)) {
+                    Files.copy(in, target);
                 }
             }
-            long lines = 0;
-            try (var walk = Files.walk(dir)) {
-                for (Path p : walk.filter(x -> x.toString().endsWith(".java")).toList()) {
-                    lines += Files.readAllLines(p).size();
-                }
-            }
-            double perKloc = lines == 0 ? 0 : count * 1000.0 / lines;
-            check("corpus:has-findings", count > 0,
-                "the pack found nothing in a real library, which is suspicious");
-            check("corpus:noise-budget", perKloc < 250,
-                "diagnostics/kLOC=" + Math.round(perKloc) + " over " + lines + " lines");
-            StringBuilder top = new StringBuilder();
-            byCode.descendingMap().entrySet().stream().limit(6).forEach(e ->
-                top.append(e.getKey()).append('=').append(e.getValue()).append(' '));
-            System.out.println("corpus: " + count + " diagnostics over " + lines + " lines ("
-                + Math.round(perKloc) + "/kLOC), " + uncatalogued + " uncatalogued key(s); top: "
-                + top.toString().trim());
-        } finally {
-            deleteRecursively(dir);
         }
     }
 
@@ -883,10 +944,12 @@ final class UnitTests {
         // Disable the built-in pack so OpenRewrite is provably the thing that edits the file.
         Files.writeString(rw.resolve("jcheck.toml"), "[errorprone]\ncustom_pack = false\n",
             StandardCharsets.UTF_8);
-        CheckCommand.Outcome rwOut = FixCommand.run(rwReq, false, false, true);
+        CheckCommand.Outcome rwOut = RewriteCommand.run(rwReq);
         String rewritten = Files.readString(rwSrc.resolve("GreeterImpl.java"), StandardCharsets.UTF_8);
         check("plugins:rewrite-override", rewritten.contains("@Override"), rewritten);
         check("plugins:rewrite-final-local", rewritten.contains("final int y"), rewritten);
+        check("plugins:rewrite-code-override", rwOut.stdout.contains("J1501"), rwOut.stdout);
+        check("plugins:rewrite-code-final", rwOut.stdout.contains("J1502"), rwOut.stdout);
         eq("plugins:rewrite-clean", 0, rwOut.exitCode);
         deleteRecursively(rw);
 

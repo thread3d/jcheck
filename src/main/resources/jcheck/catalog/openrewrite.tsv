@@ -1,0 +1,5 @@
+# jcheck catalog: OpenRewrite recipes applied by `jcheck rewrite`. 9 fields: source, source_key, code, tier, headline, label, group, help, doc
+openrewrite	OpenRewriteRecipe	J1500	5	OpenRewrite recipe applied	recipe applied	openrewrite	review the rewrite before committing	docs/J1500.md
+openrewrite	org.openrewrite.staticanalysis.MissingOverrideAnnotation	J1501	5	added a missing @Override	missing @Override	missing-override	the annotation makes a signature drift a compile error	docs/J1501.md
+openrewrite	org.openrewrite.staticanalysis.FinalizeLocalVariables	J1502	5	made a local variable final	can be final	can-be-final	the variable is assigned once and never reassigned	docs/J1502.md
+openrewrite	org.openrewrite.staticanalysis.UseTryWithResources	J1503	5	converted a manual close into try-with-resources	use try-with-resources	unclosed-resource	prefer try-with-resources for every AutoCloseable	docs/J1503.md

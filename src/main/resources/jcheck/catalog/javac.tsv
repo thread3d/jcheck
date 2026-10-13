@@ -109,3 +109,8 @@ javac	compiler.warn.possible.fall-through.into.case	J0466	2	possible fall-throug
 javac	compiler.warn.potentially.ambiguous.overload	J0467	2	potentially ambiguous overload	forward reference	overload-resolution	move the referenced method after this one, or qualify the call	docs/J0467.md
 javac	compiler.warn.possible.this.escape	J0468	2	possible `this` escape before the constructor completes	`this` escapes	this-escape	do not call overridable methods or publish `this` from a constructor	docs/J0468.md
 javac	compiler.warn.possible.this.escape.location	J0469	2	`this` escapes here before the constructor completes	`this` escapes	this-escape	do not call overridable methods or publish `this` from a constructor	docs/J0469.md
+javac	compiler.warn.possible.loss.of.precision	J0470	2	possible loss of precision in a compound assignment	narrowing assignment	numeric-narrowing	use Math.toIntExact or an explicit cast	docs/J0470.md
+javac	compiler.warn.leaks.not.accessible.unexported	J0471	2	type {0} is not accessible through module exports	not exported	module-access	export the package, or pass the matching --add-exports	docs/J0471.md
+javac	compiler.warn.has.been.deprecated.for.removal	J0472	2	{0} has been deprecated for removal	deprecated for removal	deprecation	stop using it: it is scheduled to be removed	docs/J0472.md
+javac	compiler.warn.redundant.cast	J0473	2	redundant cast to {0}	redundant cast	redundant-cast	remove the cast; the value is already of that type	docs/J0473.md
+javac	compiler.warn.unchecked.meth.invocation.applied	J0474	2	unchecked method invocation applied to {0}	unchecked invocation	unchecked	add an explicit type witness, or suppress with a reason	docs/J0474.md

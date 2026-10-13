@@ -170,10 +170,10 @@ public final class Main {
         return FixCommand.run(req, a.has("maybe-incorrect"), a.has("error-prone"), a.has("rewrite"));
     }
 
-    /** {@code jcheck rewrite}: apply OpenRewrite recipes and keep the result only if it improves. */
+    /** {@code jcheck rewrite}: apply OpenRewrite recipes and report each change with a code. */
     static CheckCommand.Outcome runRewrite(String[] rest) {
         Args a = Args.parse(rest, VALUE_FLAGS);
-        return FixCommand.run(buildRequest(a), false, false, true);
+        return RewriteCommand.run(buildRequest(a));
     }
 
     // ---- explain ----------------------------------------------------------
