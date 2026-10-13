@@ -192,8 +192,9 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   incremental compile that does not come back clean — falls back to a full re-check.
 - **Infer (T5)** — `jcheck infer` runs Facebook Infer's Java frontend when the native binary is on
   `PATH` or pointed at by `[bytecode] infer_binary` / `$JCHECK_INFER`, and reports each finding as
-  `J1401` with Infer's own qualifier and procedure. Its `infer-out` stays in the jcheck cache; when
-  the binary is missing the command says so instead of reporting a quiet T5.
+  `J1401` with Infer's own qualifier and procedure. With `[bytecode] infer = true` the ordinary
+  `jcheck check` runs it at T5 too. Its `infer-out` stays in the jcheck cache; when the binary is
+  missing the command says so instead of reporting a quiet T5.
 - **Concurrency stress (T5)** — `jcheck jcstress` compiles the project's `@JCStressTest` sources
   with the jcstress annotation processor when no `META-INF/TestList` exists yet, runs them, and
   reports every forbidden or interesting outcome as `J1201`.
@@ -204,11 +205,11 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   per-session process and source-change subscriptions. See [MCP interface](#mcp-interface).
 - **`init`, `fix`, `explain`, `fmt`, `build`, `test`** — including a JUnit XML parser that lifts
   project stack frames above framework frames.
-- **Tests** — 1245 assertions: unit tests plus 22 rustc-style UI golden cases under
+- **Tests** — 1247 assertions: unit tests plus 22 rustc-style UI golden cases under
   `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output. Set
   `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end analyzer cases (Error Prone, NullAway, the
   Checker Framework, SpotBugs, jcstress and `jcheck-junit`), which need downloaded jars; that run
-  has 1260 assertions.
+  has 1262 assertions.
 - **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
   (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
   `Todo()`/`Unreachable()`/`Unimplemented()` markers behind J0902, and a sealed `Result` type.
@@ -234,14 +235,16 @@ overstate itself:
 
 `./tests/run.sh` builds jcheck and runs the unit tests, the 22 rustc-style UI golden cases and the
 MCP tests; the default suite needs only a JDK, no network. `JCHECK_TEST_PLUGINS=1` adds the
-end-to-end analyzer cases — Error Prone, NullAway, the Checker Framework, SpotBugs and
-`jcheck-junit` — which download and cache their jars.
+end-to-end analyzer cases — Error Prone, NullAway, the Checker Framework, SpotBugs, jcstress and
+`jcheck-junit` — which download and cache their jars. The Infer case runs against a native binary
+when one is present and skips otherwise.
 
 Not covered here, and stated so a green run is not mistaken for more than it is: the
 false-positive corpus over real third-party projects, a JDK matrix (this checkout is JDK 20 only),
-and daemon classpath-change, out-of-memory and stale-cache recovery. The daemon does have a
-concurrent-request and lifecycle test, every catalog entry is checked to have an implementation,
-and every machine-applicable suggestion is applied and re-checked by a unit test.
+and daemon out-of-memory recovery. The daemon does have classpath-change, stale-cache, concurrent
+request and lifecycle tests, every catalog entry is checked to have an implementation, every
+machine-applicable suggestion is applied and re-checked, and the incremental planner is tested for
+the body-change, API-change and classpath-change rules.
 
 ## Environment
 

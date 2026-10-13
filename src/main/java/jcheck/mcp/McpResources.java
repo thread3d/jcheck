@@ -236,16 +236,20 @@ public final class McpResources {
         }
         sb.append(" |\n");
         sb.append("| T5 bytecode tools | ")
-          .append(config.spotbugs ? "runs" : "not configured")
+          .append(config.spotbugs || config.infer ? "runs" : "not configured")
           .append(" | ");
-        if (config.spotbugs) {
-            sb.append("SpotBugs ").append(config.spotbugsEffort).append("/")
-              .append(config.spotbugsThreshold);
-            if (config.findsecbugs) {
-                sb.append(" with FindSecBugs");
+        if (config.spotbugs || config.infer) {
+            List<String> tools = new java.util.ArrayList<>();
+            if (config.spotbugs) {
+                tools.add("SpotBugs " + config.spotbugsEffort + "/" + config.spotbugsThreshold
+                    + (config.findsecbugs ? " with FindSecBugs" : ""));
             }
+            if (config.infer) {
+                tools.add("Infer");
+            }
+            sb.append(String.join(", ", tools));
         } else {
-            sb.append("enable [bytecode] spotbugs to attach SpotBugs");
+            sb.append("enable [bytecode] spotbugs or infer to attach them");
         }
         sb.append(" |\n\n");
 

@@ -30,6 +30,10 @@ public final class CheckOptions {
     public final boolean errorProne;
     public final boolean checkerFramework;
     public final boolean spotbugs;
+    /** Whether Infer is attached at T5 alongside SpotBugs. */
+    public final boolean infer;
+    /** Explicit Infer binary path; blank means {@code $JCHECK_INFER} then PATH. */
+    public final String inferBinary;
     /** Error Prone version to resolve when no explicit plugin classpath is configured. */
     public final String errorProneVersion;
     /** NullAway version to resolve when no explicit plugin classpath is configured. */
@@ -81,6 +85,8 @@ public final class CheckOptions {
         this.errorProne = b.errorProne;
         this.checkerFramework = b.checkerFramework;
         this.spotbugs = b.spotbugs;
+        this.infer = b.infer;
+        this.inferBinary = b.inferBinary == null ? "" : b.inferBinary;
         this.errorProneVersion = blank(b.errorProneVersion) ? "2.24.1" : b.errorProneVersion;
         this.nullawayVersion = blank(b.nullawayVersion) ? "0.10.18" : b.nullawayVersion;
         this.pluginClasspath = Collections.unmodifiableList(new ArrayList<>(b.pluginClasspath));
@@ -114,7 +120,7 @@ public final class CheckOptions {
             case 4:
                 return checkerFramework;
             case 5:
-                return spotbugs;
+                return spotbugs || infer;
             default:
                 return false;
         }
@@ -153,6 +159,8 @@ public final class CheckOptions {
         private boolean errorProne;
         private boolean checkerFramework;
         private boolean spotbugs;
+        private boolean infer;
+        private String inferBinary;
         private String errorProneVersion;
         private String nullawayVersion;
         private final List<String> pluginClasspath = new ArrayList<>();
@@ -257,6 +265,16 @@ public final class CheckOptions {
 
         public Builder spotbugs(boolean v) {
             this.spotbugs = v;
+            return this;
+        }
+
+        public Builder infer(boolean v) {
+            this.infer = v;
+            return this;
+        }
+
+        public Builder inferBinary(String v) {
+            this.inferBinary = v;
             return this;
         }
 

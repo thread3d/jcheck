@@ -227,7 +227,7 @@ public final class Initializer {
             + "\n"
             + "[bytecode]\n"
             + "spotbugs = { effort = \"max\", threshold = \"medium\", findsecbugs = true }\n"
-            + "infer    = false\n"
+            + "infer    = false      # runs at T5 when the Infer binary is available\n"
             + "# infer_binary = \"/path/to/infer\"   # or put infer on PATH\n"
             + "\n"
             + "[tests]\n"

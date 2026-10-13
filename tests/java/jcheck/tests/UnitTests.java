@@ -298,6 +298,11 @@ final class UnitTests {
         CheckCommand.Outcome out = InferCommand.run(req);
         contains("infer:j1401", out.stdout, "J1401");
         contains("infer:source", out.stdout, "source: infer");
+
+        // With [bytecode] infer = true, the ordinary check must run it at T5 too.
+        CheckCommand.Outcome check = TestMain.runCase(tmp, "check --profile standard");
+        contains("infer:via-check", check.stdout, "J1401");
+        contains("infer:via-check-tier", check.stdout, "analysis reached T5");
         deleteRecursively(tmp);
     }
 

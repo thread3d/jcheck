@@ -8,10 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import jcheck.build.BuildModel;
 import jcheck.catalog.Catalog;
 import jcheck.catalog.CatalogEntry;
-import jcheck.config.JcheckConfig;
 import jcheck.engine.SpanResolver;
 import jcheck.model.Diagnostic;
 import jcheck.model.Level;
@@ -46,20 +44,16 @@ public final class InferRunner {
     private InferRunner() {
     }
 
-    public static Result run(Path root, JcheckConfig config, List<Path> scopedSources, Catalog catalog) {
+    public static Result run(Path root, String configuredBinary, List<Path> sources,
+                             List<Path> classpath, Catalog catalog) {
         List<String> notes = new ArrayList<>();
-        Path infer = findInfer(root, config);
+        Path infer = findInfer(root, configuredBinary);
         if (infer == null) {
             notes.add("Infer is not available: set [bytecode] infer_binary, $JCHECK_INFER, or put "
                 + "infer on PATH. Infer did not run.");
             return new Result(List.of(), notes, false);
         }
-
-        BuildModel model = BuildModel.resolve(root, config, null, null, null, null);
-        notes.addAll(model.notes);
-        List<Path> sources = scopedSources == null || scopedSources.isEmpty()
-            ? model.sources : scopedSources;
-        if (sources.isEmpty()) {
+        if (sources == null || sources.isEmpty()) {
             notes.add("no sources for Infer to analyze");
             return new Result(List.of(), notes, false);
         }
@@ -95,9 +89,9 @@ public final class InferRunner {
             command.add("javac");
             command.add("-d");
             command.add(classes.toString());
-            if (!model.classpath.isEmpty()) {
+            if (classpath != null && !classpath.isEmpty()) {
                 command.add("-classpath");
-                command.add(join(model.classpath));
+                command.add(join(classpath));
             }
             for (Path source : sources) {
                 command.add(source.toString());
@@ -193,9 +187,9 @@ public final class InferRunner {
     }
 
     /** The Infer binary: configured path, {@code $JCHECK_INFER}, then {@code PATH}. */
-    public static Path findInfer(Path root, JcheckConfig config) {
-        if (config.inferBinary != null && !config.inferBinary.isBlank()) {
-            Path p = Path.of(config.inferBinary);
+    public static Path findInfer(Path root, String configuredBinary) {
+        if (configuredBinary != null && !configuredBinary.isBlank()) {
+            Path p = Path.of(configuredBinary);
             Path resolved = p.isAbsolute() ? p : root.resolve(p);
             return Files.isExecutable(resolved) ? resolved : null;
         }

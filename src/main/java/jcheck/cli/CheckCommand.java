@@ -260,6 +260,8 @@ public final class CheckCommand {
             .spotbugsJars(spotbugsJars)
             .spotbugsEffort(config.spotbugsEffort)
             .spotbugsThreshold(config.spotbugsThreshold)
+            .infer(config.infer)
+            .inferBinary(config.inferBinary)
             .toolNotes(pluginNotes)
             .toolNotes(model.notes);
 

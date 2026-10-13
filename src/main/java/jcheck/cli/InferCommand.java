@@ -37,7 +37,12 @@ public final class InferCommand {
         for (Path p : req.sources) {
             scoped.add(p.isAbsolute() ? p : root.resolve(p));
         }
-        InferRunner.Result result = InferRunner.run(root, config, scoped, Catalog.loadDefault());
+        jcheck.build.BuildModel model = jcheck.build.BuildModel.resolve(root, config, scoped,
+            req.classpath, null, req.release);
+        InferRunner.Result result = InferRunner.run(root, config.inferBinary, model.sources,
+            model.classpath, Catalog.loadDefault());
+        List<String> notes = new ArrayList<>(model.notes);
+        notes.addAll(result.notes);
 
         String format = req.format == null ? "human" : req.format;
         Renderer renderer;
@@ -48,7 +53,7 @@ public final class InferCommand {
         }
 
         CheckReport report = new CheckReport(result.diagnostics, List.of(), List.of(),
-            inferTiers(), result.notes, List.of());
+            inferTiers(), notes, List.of());
         int maxDiag = req.maxDiagnostics > 0 ? req.maxDiagnostics
             : ("llm".equals(format) ? config.llmMaxDiagnostics : 0);
         int contextLines = req.contextLines >= 0 ? req.contextLines : config.llmContextLines;

@@ -19,6 +19,7 @@ import jcheck.model.Tier;
 import jcheck.model.TierReport;
 import jcheck.plugins.CheckerFrameworkRunner;
 import jcheck.plugins.ErrorProneRunner;
+import jcheck.plugins.InferRunner;
 import jcheck.plugins.SpotBugsRunner;
 
 /**
@@ -106,6 +107,14 @@ public final class Engine {
                 all.addAll(bytecode.diagnostics);
                 toolNotes.addAll(bytecode.notes);
                 t5Ran = bytecode.ran;
+            }
+            if (opts.infer) {
+                InferRunner.Result infer = InferRunner.run(
+                    Path.of(opts.rootDir == null ? "." : opts.rootDir), opts.inferBinary,
+                    opts.sources, opts.classpath, catalog);
+                all.addAll(infer.diagnostics);
+                toolNotes.addAll(infer.notes);
+                t5Ran = t5Ran || infer.ran;
             }
         }
 
