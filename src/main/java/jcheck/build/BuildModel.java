@@ -1,6 +1,7 @@
 package jcheck.build;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -12,6 +13,8 @@ import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import jcheck.config.JcheckConfig;
 
@@ -103,22 +106,33 @@ public final class BuildModel {
                 }
             }
             List<Path> moduleRoots = moduleSourceRoots(absRoot);
-            for (Path p : moduleRoots) {
+            PomModel pom = pomModel(absRoot);
+            List<Path> allModuleRoots = new ArrayList<>(moduleRoots);
+            for (Path p : pom.sourceRoots) {
+                if (!allModuleRoots.contains(p)) {
+                    allModuleRoots.add(p);
+                }
+            }
+            for (Path p : allModuleRoots) {
                 if (!candidates.contains(p)) {
                     candidates.add(p);
                 }
             }
-            if (!moduleRoots.isEmpty()) {
-                info.add("module source roots: " + relativeAll(absRoot, moduleRoots));
-                for (Path sourceRoot : moduleRoots) {
-                    Path module = sourceRoot.getParent() == null ? null
-                        : sourceRoot.getParent().getParent() == null ? null
-                        : sourceRoot.getParent().getParent().getParent();
-                    if (module != null && !modules.contains(module)) {
-                        modules.add(module);
-                    }
+            for (Path p : moduleRoots) {
+                Path module = sourceRootModule(p);
+                if (module != null && !modules.contains(module)) {
+                    modules.add(module);
                 }
-                notes.add(modules.size() + " module(s) detected under " + relativeAll(absRoot, modules));
+            }
+            for (Path m : pom.modules) {
+                if (!modules.contains(m)) {
+                    modules.add(m);
+                }
+            }
+            if (!allModuleRoots.isEmpty()) {
+                info.add("module source roots: " + relativeAll(absRoot, allModuleRoots));
+                notes.add(modules.size() + " module(s) detected under "
+                    + relativeAll(absRoot, modules));
             }
             if (candidates.isEmpty()) {
                 candidates.add(absRoot);
@@ -324,8 +338,98 @@ public final class BuildModel {
         return roots;
     }
 
-    private static String relativeAll(Path root, List<Path> paths) {
-        StringBuilder sb = new StringBuilder();
+    /** The module directory a walked {@code module/src/main/java} source root belongs to. */
+    private static Path sourceRootModule(Path sourceRoot) {
+        Path p = sourceRoot;
+        for (int i = 0; i < 3 && p != null; i++) {
+            p = p.getParent();
+        }
+        return p;
+    }
+
+    /** What a Maven {@code pom.xml} declares: the modules and their source directories. */
+    static final class PomModel {
+        final List<Path> sourceRoots = new ArrayList<>();
+        final List<Path> modules = new ArrayList<>();
+    }
+
+    /**
+     * Reads {@code pom.xml} for {@code <modules>} and each module's {@code <sourceDirectory>} /
+     * {@code <testSourceDirectory>} (defaults {@code src/main/java} and {@code src/test/java}),
+     * recursing into nested modules. This finds the layouts a directory walk cannot: a module with
+     * {@code <sourceDirectory>src/java</sourceDirectory>}, or a module whose {@code pom.xml} declares
+     * further modules.
+     */
+    static PomModel pomModel(Path root) {
+        PomModel model = new PomModel();
+        Path pom = root.resolve("pom.xml");
+        if (Files.isRegularFile(pom)) {
+            collectPom(root, pom, model, 0);
+        }
+        return model;
+    }
+
+    private static void collectPom(Path moduleDir, Path pom, PomModel model, int depth) {
+        if (depth > 4) {
+            return;
+        }
+        String xml;
+        try {
+            xml = Files.readString(pom, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            return;
+        }
+        boolean isRoot = depth == 0;
+        for (String tag : List.of("sourceDirectory", "testSourceDirectory")) {
+            String fallback = "sourceDirectory".equals(tag) ? "src/main/java" : "src/test/java";
+            String declared = tagValue(xml, tag, fallback);
+            if (declared.contains("${")) {
+                continue;
+            }
+            Path p = moduleDir.resolve(declared).normalize();
+            if (Files.isDirectory(p) && !model.sourceRoots.contains(p)) {
+                model.sourceRoots.add(p);
+            }
+        }
+        if (!isRoot && !model.modules.contains(moduleDir)) {
+            model.modules.add(moduleDir);
+        }
+        for (String module : tagValues(xml, "module")) {
+            String name = module.trim();
+            if (name.isEmpty() || name.contains("${")) {
+                continue;
+            }
+            Path child = moduleDir.resolve(name).normalize();
+            Path childPom = child.resolve("pom.xml");
+            if (Files.isRegularFile(childPom)) {
+                collectPom(child, childPom, model, depth + 1);
+            } else if (Files.isDirectory(child.resolve("src/main/java"))) {
+                if (!model.modules.contains(child)) {
+                    model.modules.add(child);
+                }
+                Path p = child.resolve("src/main/java");
+                if (!model.sourceRoots.contains(p)) {
+                    model.sourceRoots.add(p);
+                }
+            }
+        }
+    }
+
+    private static String tagValue(String xml, String tag, String fallback) {
+        Matcher m = Pattern.compile("<" + tag + ">\\s*([^<]+?)\\s*</" + tag + ">").matcher(xml);
+        return m.find() ? m.group(1) : fallback;
+    }
+
+    private static List<String> tagValues(String xml, String tag) {
+        List<String> values = new ArrayList<>();
+        Matcher m = Pattern.compile("<" + tag + ">\\s*([^<]+?)\\s*</" + tag + ">").matcher(xml);
+        while (m.find()) {
+            values.add(m.group(1));
+        }
+        return values;
+    }
+
+    private static String relativeAll(Path root, List<Path> paths) {        StringBuilder sb = new StringBuilder();
         for (int i = 0; i < paths.size(); i++) {
             if (i > 0) {
                 sb.append(", ");

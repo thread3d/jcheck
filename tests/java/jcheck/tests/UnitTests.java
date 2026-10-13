@@ -328,6 +328,27 @@ final class UnitTests {
             check("modules:test", names.contains("BTest.java"), names.toString());
             check("modules:prunes-build", !names.contains("Generated.java"), names.toString());
             eq("modules:count", 3, model.modules.size());
+
+            // A Maven layout with declared modules and a non-default source directory.
+            Path maven = Files.createTempDirectory("jcheck-maven-modules-");
+            try {
+                Path api = maven.resolve("api/src/java/demo");
+                Files.createDirectories(api);
+                Files.writeString(api.resolve("Api.java"), "package demo;\npublic final class Api {}\n");
+                Files.writeString(maven.resolve("pom.xml"),
+                    "<project><modules><module>api</module></modules></project>\n");
+                Files.writeString(maven.resolve("api/pom.xml"),
+                    "<project><build><sourceDirectory>src/java</sourceDirectory></build></project>\n");
+                JcheckConfig mavenConfig = JcheckConfig.load(maven);
+                BuildModel mavenModel = BuildModel.resolve(maven, mavenConfig, null, null, null, null);
+                List<String> mavenNames = mavenModel.sources.stream()
+                    .map(p -> p.getFileName().toString()).toList();
+                check("modules:maven-source-dir", mavenNames.contains("Api.java"), mavenNames.toString());
+                check("modules:maven-module", mavenModel.modules.size() == 1,
+                    "modules=" + mavenModel.modules);
+            } finally {
+                deleteRecursively(maven);
+            }
         } finally {
             deleteRecursively(tmp);
         }
@@ -348,7 +369,9 @@ final class UnitTests {
         List<String> coordinates = List.of(
             "org.apache.commons:commons-lang3:3.14.0:sources",
             "com.google.code.gson:gson:2.10.1:sources",
-            "org.apache.commons:commons-collections4:4.4:sources");
+            "org.apache.commons:commons-collections4:4.4:sources",
+            "commons-codec:commons-codec:1.16.1:sources",
+            "commons-cli:commons-cli:1.6.0:sources");
         int libraries = 0;
         int skipped = 0;
         int totalDiagnostics = 0;
@@ -410,7 +433,7 @@ final class UnitTests {
                 deleteRecursively(dir);
             }
         }
-        check("corpus:libraries", libraries >= 2, "analyzed " + libraries + " libraries");
+        check("corpus:libraries", libraries >= 3, "analyzed " + libraries + " libraries");
         check("corpus:uncatalogued-none", totalUncatalogued == 0,
             totalUncatalogued + " uncatalogued upstream key(s)");
         double perKloc = totalLines == 0 ? 0 : totalDiagnostics * 1000.0 / totalLines;

@@ -209,8 +209,10 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   finding. jcheck itself has no OpenRewrite dependency.
 - **Multi-module builds** — when there is no root `src/main/java`, the model walks for module source
   roots (`module-a/src/main/java`, `group/module-b/src/test/java`, …) up to five levels deep, pruning
-  build outputs, VCS metadata and hidden directories, so a Gradle or Maven multi-module project is
-  analysed without listing every module.
+  build outputs, VCS metadata and hidden directories, and it also reads `pom.xml` for a Maven
+  project's declared `<modules>` and each module's `<sourceDirectory>`/`<testSourceDirectory>`, so a
+  module with `src/java` instead of `src/main/java` is found too. A Gradle project with a
+  non-standard source set still needs `[project] sources`.
 - **Daemon** — length-prefixed binary protocol over a Unix domain socket, keyed by a hash of the
   project root so serving a project never writes into it. `jcheck check` uses a running daemon
   automatically and falls back in-process. A dropped connection, a malformed frame or a throwing
@@ -220,12 +222,12 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   per-session process and source-change subscriptions. See [MCP interface](#mcp-interface).
 - **`init`, `fix`, `explain`, `fmt`, `build`, `test`** — including a JUnit XML parser that lifts
   project stack frames above framework frames.
-- **Tests** — 1322 assertions: unit tests plus 22 rustc-style UI golden cases under
+- **Tests** — 1324 assertions: unit tests plus 22 rustc-style UI golden cases under
   `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output. Set
   `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end analyzer cases (Error Prone, NullAway, the
-  Checker Framework, SpotBugs, jcstress, OpenRewrite, the three-library corpus and `jcheck-junit`),
-  which need downloaded jars; that run has 1356 assertions on JDK 20 and fewer on 21 (1354) and 25
-  (1346), where an analyzer or corpus library that does not support the JDK is skipped rather than
+  Checker Framework, SpotBugs, jcstress, OpenRewrite, the five-library corpus and `jcheck-junit`),
+  which need downloaded jars; that run has 1364 assertions on JDK 20 and fewer on 21 (1362) and 25
+  (1354), where an analyzer or corpus library that does not support the JDK is skipped rather than
   counted green.
 - **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
   (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
@@ -242,9 +244,9 @@ overstate itself:
   annotation-processor classpath (for Maven, `dependency:build-classpath`). The answer is cached
   under the jcheck cache directory and keyed by a fingerprint of the build files, so a warm daemon
   does not pay twice. When the tool is absent or the resolution fails, the heuristic classpath is
-  kept and the limitation is stated on every run where it applies. Multi-module *sources* are found
-  by walking the tree rather than by asking the build tool for its source sets, so a non-standard
-  layout needs `[project] sources`.
+  kept and the limitation is stated on every run where it applies. Multi-module *sources* come from
+  the directory walk plus a Maven `pom.xml`'s own `<modules>` and `<sourceDirectory>` declarations;
+  Gradle source sets are not queried, so a custom Gradle layout needs `[project] sources`.
 - **OpenRewrite coverage is opt-in and Java-only.** `jcheck rewrite` runs the recipes named in
   `[fix] rewrite_recipes` from `rewrite-static-analysis`; other recipe libraries are not resolved,
   and a recipe that is not on the classpath fails loudly rather than being skipped.
@@ -258,17 +260,18 @@ end-to-end analyzer cases — Error Prone, NullAway, the Checker Framework, Spot
 when one is present and skips otherwise.
 
 Not covered here, and stated so a green run is not mistaken for more than it is: a broad
-false-positive corpus. The suite runs the T3 pack over three real libraries — Apache Commons Lang,
-Gson and Apache Commons Collections, 180k lines in total — and asserts that each library which
-compiles there reaches T3, finds something, stays under 250 diagnostics per kLOC and leaves no
-upstream key uncatalogued; it currently reports 8 per kLOC. Commons Collections 4.4 does not compile
-on JDK 21 or 25, so it is skipped on those rather than counted; three libraries are still not a
-corpus. The suite runs on JDK 20, 21 and 25; on 25 the analyzers that do not support it are skipped
-rather than counted green. The daemon tests cover classpath change, stale cache, concurrent
-requests, malformed frames, shutdown and out-of-memory recovery (a constrained-heap daemon must
-answer rather than hang, and a fresh one must come up afterwards). Every catalog entry is checked to
-have an implementation, every machine-applicable suggestion is applied and re-checked, and the
-incremental planner is tested for the body-change, API-change and classpath-change rules.
+false-positive corpus. The suite runs the T3 pack over five real libraries — Apache Commons Lang,
+Gson, Apache Commons Collections, Apache Commons Codec and Apache Commons CLI, 208k lines in total —
+and asserts that each library which compiles there reaches T3, finds something, stays under 250
+diagnostics per kLOC and leaves no upstream key uncatalogued; it currently reports about 8 per kLOC.
+Commons Collections 4.4 does not compile on JDK 21 or 25, so it is skipped on those rather than
+counted; five libraries are still not a corpus. The suite runs on JDK 20, 21 and 25; on 25 the
+analyzers that do not support it are skipped rather than counted green. The daemon tests cover
+classpath change, stale cache, concurrent requests, malformed frames, shutdown and out-of-memory
+recovery (a constrained-heap daemon must answer rather than hang, and a fresh one must come up
+afterwards). Every catalog entry is checked to have an implementation, every machine-applicable
+suggestion is applied and re-checked, and the incremental planner is tested for the body-change,
+API-change and classpath-change rules.
 
 ## Environment
 
