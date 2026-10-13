@@ -67,7 +67,7 @@ javac proceeds parse, enter, attribute, flow, desugar, and stops early on errors
 
 ### Compiler configuration notes (verify each against the target JDK)
 
-- Baseline JDK 21 or 25 (LTS); sealed types, records and pattern switch are required for the exhaustiveness story.
+- Baseline JDK 21 or 25 (LTS) for the *checked code*; sealed types, records and pattern switch are required for the exhaustiveness story. jcheck itself runs on JDK 17 or newer, and Java 8 and 11 projects are supported as `--release` targets.
 - `-Xlint:all` with documented opt-outs, `-Werror`, `-Xdiags:verbose`, `-parameters`; `-Xmaxerrs` and `-Xmaxwarns` set high internally and capped at render time.
 - Pass `-proc:full` or an explicit `-processor` list: JDK 23+ no longer runs annotation processors implicitly.
 - Error Prone on JDK 16+ needs the documented `--add-exports` / `--add-opens` flags for `jdk.compiler`; the daemon's JVM args must include them.
@@ -383,4 +383,4 @@ Seven choices to settle before building; the recommendation is given where one e
 4. **Checker Framework scope.** It gives the strongest guarantees (resource ownership, indexing, locking) but adds annotation burden and compile time. Recommended: opt-in per module, not default.
 5. **Custom check pack.** Ship it upstream-style or keep it private; this affects the maintenance burden of Error Prone version compatibility.
 6. **Kotlin and Scala in mixed projects.** Out of scope for v0.1, since javac tooling does not see them. Decide whether to document a hard boundary.
-7. **Supported JDK range.** JDK 21 and 25 are assumed.
+7. **Supported JDK range.** jcheck runs on JDK 17 or newer (17, 20, 21 and 25 are tested, which is JDK 17's floor plus the LTS line and the latest). Java 8 and 11 projects are checked as `--release` targets, exercised by the suite against those language levels.

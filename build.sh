@@ -22,6 +22,19 @@ if ! command -v javac >/dev/null 2>&1; then
   exit 2
 fi
 
+# jcheck's own source needs records, switch expressions and Unix domain sockets, so JDK 17 is the
+# floor. Java 8 and 11 projects are supported as --release targets, not as the building JDK.
+JAVAC_MAJOR="$(javac -version 2>&1 | sed -nE 's/^javac ([0-9]+).*/\1/p')"
+if [ "$JAVAC_MAJOR" = "1" ]; then
+  # JDK 8 and earlier report as 1.8; the meaningful number is the second component.
+  JAVAC_MAJOR="$(javac -version 2>&1 | sed -nE 's/^javac 1\.([0-9]+).*/\1/p')"
+fi
+if [ -n "$JAVAC_MAJOR" ] && [ "$JAVAC_MAJOR" -lt 17 ]; then
+  echo "build.sh: jcheck needs JDK 17 or newer to build (found javac $JAVAC_MAJOR)." >&2
+  echo "           Java 8 and 11 projects are checked as --release targets instead." >&2
+  exit 2
+fi
+
 rm -rf "$OUT"
 mkdir -p "$OUT"
 

@@ -102,6 +102,7 @@ final class UnitTests {
         incrementalPlanTests();
         multiModuleTests();
         sourceScanTests();
+        releaseMatrixTests();
         buildToolModelTests();
         buildToolIntegrationTests();
         gradleSourceSetTests();
@@ -448,6 +449,118 @@ final class UnitTests {
             check("scan:fallback-prunes-build", !names.contains("Generated.java"), names.toString());
         } finally {
             deleteRecursively(flat);
+        }
+    }
+
+    // ---- JDK and release matrix ---------------------------------------------
+
+    /**
+     * jcheck's own floor is JDK 17 (records, switch expressions, Unix domain sockets), so Java 8 and
+     * 11 projects are covered the way {@code --release} intends: as target language levels. These
+     * cases prove the release really reaches javac — the same file is rejected at 8, rejected at 11
+     * and accepted at 17 — and that a Java-9 API call is rejected only when targeting 8. Where the
+     * JDK 8 and 11 installations are present, the fixtures are also handed to their own javac, which
+     * is what makes the expected levels a fact rather than an assumption.
+     */
+    private static void releaseMatrixTests() throws Exception {
+        Path tmp = Files.createTempDirectory("jcheck-release-");
+        Path src = tmp.resolve("src/main/java/demo");
+        Files.createDirectories(src);
+        Files.writeString(src.resolve("Legacy.java"),
+            "package demo;\n"
+            + "import java.util.ArrayList;\n"
+            + "import java.util.List;\n"
+            + "public final class Legacy {\n"
+            + "    static List<String> names() {\n"
+            + "        List<String> names = new ArrayList<String>();\n"
+            + "        names.add(\"a\");\n"
+            + "        return names;\n"
+            + "    }\n"
+            + "}\n", StandardCharsets.UTF_8);
+        Files.writeString(src.resolve("Api8.java"),
+            "package demo;\n"
+            + "import java.util.List;\n"
+            + "public final class Api8 {\n"
+            + "    static List<String> names() {\n"
+            + "        return List.of(\"a\");\n"
+            + "    }\n"
+            + "}\n", StandardCharsets.UTF_8);
+        Files.writeString(src.resolve("Levels.java"),
+            "package demo;\n"
+            + "public final class Levels {\n"
+            + "    record Point(int x, int y) { }\n"
+            + "    static int var10() {\n"
+            + "        var x = 1;\n"
+            + "        return x;\n"
+            + "    }\n"
+            + "    static String text15() {\n"
+            + "        return \"\"\"\n"
+            + "            text\n"
+            + "            \"\"\";\n"
+            + "    }\n"
+            + "}\n", StandardCharsets.UTF_8);
+        try {
+            check("release:8-accepts-java8", errorCountAt(tmp, 8, "Legacy.java") == 0,
+                "release 8 must accept Java 8 code");
+            check("release:8-rejects-newer-syntax", errorCountAt(tmp, 8, "Levels.java") > 0,
+                "var, records and text blocks are newer than 8");
+            check("release:8-restricts-api", errorCountAt(tmp, 8, "Api8.java") > 0,
+                "List.of is not in the Java 8 API");
+            check("release:11-accepts-api9", errorCountAt(tmp, 11, "Api8.java") == 0,
+                "List.of is in the Java 11 API");
+            check("release:11-rejects-records", errorCountAt(tmp, 11, "Levels.java") > 0,
+                "records and text blocks are newer than 11");
+            check("release:17-accepts-levels", errorCountAt(tmp, 17, "Levels.java") == 0,
+                "records are Java 16 and text blocks Java 15, so 17 accepts them");
+
+            assertJavacLevels(tmp);
+        } finally {
+            deleteRecursively(tmp);
+        }
+    }
+
+    /** Errors jcheck reports for one file at a target release; MAX_VALUE if the run itself failed. */
+    private static int errorCountAt(Path root, int release, String only) {
+        CheckRequest req = new CheckRequest();
+        req.root = root.toString();
+        req.profile = "standard";
+        req.release = release;
+        req.sources = List.of(root.resolve("src/main/java/demo/" + only));
+        CheckCommand.Analysis analysis = CheckCommand.analyze(req);
+        return analysis.ok() ? analysis.report.errorCount() : Integer.MAX_VALUE;
+    }
+
+    /** Confirms the installed JDK 8 and 11 compilers agree about the fixtures, when they exist. */
+    private static void assertJavacLevels(Path root) throws Exception {
+        Path javac8 = Path.of("/Users/threaded/projects/JCheck/tools/jdk8/Contents/Home/bin/javac");
+        Path javac11 = Path.of("/Users/threaded/projects/JCheck/tools/jdk11/Contents/Home/bin/javac");
+        if (Files.isExecutable(javac8)) {
+            check("release:jdk8-compiles-legacy", compileWith(javac8, root, "Legacy.java") == 0,
+                "the JDK 8 compiler should accept a Java 8 file");
+            check("release:jdk8-rejects-newer-syntax",
+                compileWith(javac8, root, "Levels.java") != 0,
+                "the JDK 8 compiler should reject var/records");
+        }
+        if (Files.isExecutable(javac11)) {
+            check("release:jdk11-compiles-api9", compileWith(javac11, root, "Api8.java") == 0,
+                "the JDK 11 compiler should accept List.of");
+            check("release:jdk11-rejects-newer-syntax",
+                compileWith(javac11, root, "Levels.java") != 0,
+                "the JDK 11 compiler should reject records");
+        }
+    }
+
+    private static int compileWith(Path javac, Path root, String file) throws Exception {
+        Path out = Files.createTempDirectory("jcheck-javac-");
+        try {
+            Process process = new ProcessBuilder(javac.toString(), "-d", out.toString(),
+                root.resolve("src/main/java/demo/" + file).toString())
+                .redirectErrorStream(true)
+                .start();
+            process.getInputStream().readAllBytes();
+            return process.waitFor();
+        } finally {
+            deleteRecursively(out);
         }
     }
 

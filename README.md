@@ -237,13 +237,13 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   per-session process and source-change subscriptions. See [MCP interface](#mcp-interface).
 - **`init`, `fix`, `explain`, `fmt`, `build`, `test`** — including a JUnit XML parser that lifts
   project stack frames above framework frames.
-- **Tests** — 1393 assertions: unit tests plus 22 rustc-style UI golden cases under
+- **Tests** — 1403 assertions: unit tests plus 22 rustc-style UI golden cases under
   `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output. Set
   `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end analyzer cases (Error Prone, NullAway, the
   Checker Framework, SpotBugs, jcstress, OpenRewrite, the twenty-one-library corpus and
-  `jcheck-junit`), which need downloaded jars; that run has 1509 assertions on JDK 20, 1506 on 21 and
-  1498 on 25, where an analyzer or corpus library that does not support the JDK is skipped rather
-  than counted green.
+  `jcheck-junit`), which need downloaded jars; that run has 1519 assertions on JDK 17 and 20, 1516 on
+  21 and 1508 on 25, where an analyzer or corpus library that does not support the JDK is skipped
+  rather than counted green.
 - **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
   (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
   `Todo()`/`Unreachable()`/`Unimplemented()` markers behind J0902, and a sealed `Result` type.
@@ -290,8 +290,9 @@ compile on JDK 21 or 25, so it is skipped on those rather than counted; twenty-o
 still not every library. The corpus has already earned its keep by catching two real bugs: a package
 directory named `build` was silently dropped from the source list (commons-io has
 `org.apache.commons.io.build`), and a diagnostic pointing into an already-closed jar filesystem
-failed the entire run instead of degrading to a line/column span. The suite runs on JDK 20, 21 and
-25; on 25 the analyzers that do not support it are skipped rather than counted green. The daemon
+failed the entire run instead of degrading to a line/column span. The suite runs on JDK 17, 20, 21
+and 25, and covers Java 8 and 11 as `--release` targets with the installed JDK 8 and 11 compilers; on
+25 the analyzers that do not support it are skipped rather than counted green. The daemon
 tests cover classpath change, stale cache, concurrent requests, malformed frames, shutdown and
 out-of-memory recovery (a constrained-heap daemon must answer rather than hang, and a fresh one must
 come up afterwards). Every catalog entry is checked to have an implementation, every
@@ -300,19 +301,28 @@ the body-change, API-change and classpath-change rules.
 
 ## Environment
 
-Built and tested on **JDK 20, JDK 21 and JDK 25**, all installed under the workspace's `tools/`
-directory. jcheck itself and the built-in T3 pack pass the full suite — UI goldens included — on all
-three, with no javac wording drift across them. The pinned third-party analyzers (Error Prone
-2.24.1, NullAway 0.10.18, SpotBugs 4.8.6) support JDK 17-21: on JDK 25 they cannot run, so their
-end-to-end cases are skipped there and the pins must be bumped to releases that support 25. When an
-analyzer cannot run, jcheck reports a plugin failure on the tier line rather than a quiet T5. The
-JDK-21 baseline in the spec matters for the *checked code*: pattern switch exhaustiveness and
+Built and tested on **JDK 17, 20, 21 and 25**, all installed under the workspace's `tools/`
+directory: jcheck itself and the built-in T3 pack pass the full suite — UI goldens included — on all
+four, with no javac wording drift across them. **JDK 17 is the floor**, because jcheck's own source
+uses records, switch expressions and Unix domain sockets; `build.sh` and the `jcheck` launcher refuse
+anything older with a message that says so instead of a wall of syntax errors. SPEC.md assumes 21 or
+25, so the tool runs on one release older than the spec requires.
+
+Java **8 and 11** projects are covered the way `--release` intends: as target language levels rather
+than as the JDK jcheck runs on. The suite checks the same fixture at release 8, 11 and 17 and asserts
+the level is actually enforced (`var`, records and text blocks are rejected at 8; `List.of` is
+rejected only when targeting 8), and the installed JDK 8 and 11 compilers confirm those fixtures
+independently, so the JDKs under `tools/` are real inputs to the matrix and not just downloads. The
+JDK-21 baseline in the spec still matters for the *checked code*: pattern switch exhaustiveness and
 `-Xlint:this-escape` need 21+. UI goldens embed javac's own message wording, which is the reason
-SPEC.md lists a JDK matrix as a test dimension. The attached plugins
+SPEC.md lists a JDK matrix as a test dimension. The pinned analyzers (Error Prone 2.24.1, NullAway
+0.10.18, SpotBugs 4.8.6) support JDK 17-21: on JDK 25 they cannot run, so their end-to-end cases are
+skipped there and the pins must be bumped to releases that support 25; when an analyzer cannot run,
+jcheck reports a plugin failure on the tier line rather than a quiet T5. The attached plugins
 are pinned to Error Prone **2.24.1**, NullAway **0.10.18** (with NullAway's `dataflow-nullaway` and
 JSpecify pulled in transitively), the Checker Framework **3.42.0**, SpotBugs **4.8.6**, PIT
 **1.15.8**, JaCoCo **0.8.12**, jcstress **0.16** and OpenRewrite (via `rewrite-static-analysis`
-**2.41.1**, which pulls `rewrite-java` 8.90.2), verified on JDK 20 and 21. All of them are
+**2.41.1**, which pulls `rewrite-java` 8.90.2), verified on JDK 17, 20 and 21. All of them are
 configurable in `jcheck.toml`. Infer is a native binary and is located rather
 than resolved; the workspace copy used here is v1.2.0.
 
