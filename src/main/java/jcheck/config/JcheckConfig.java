@@ -103,6 +103,8 @@ public final class JcheckConfig {
         "org.openrewrite.staticanalysis.MissingOverrideAnnotation",
         "org.openrewrite.staticanalysis.FinalizeLocalVariables",
         "org.openrewrite.staticanalysis.UseTryWithResources");
+    /** Extra Maven coordinates put on the rewrite runner classpath (more recipe libraries). */
+    public List<String> rewriteLibraries = List.of();
     /** Fixed report location used by {@code jcheck test}. */
     public String reportDir;
     /** Where this config was loaded from, or null when defaults are in use. */
@@ -211,6 +213,7 @@ public final class JcheckConfig {
         c.rewriteVersion = Toml.str(fix, "rewrite_version", c.rewriteVersion);
         c.rewriteKotlin = Toml.bool(fix, "rewrite_kotlin", c.rewriteKotlin);
         c.rewriteRecipes = Toml.strList(fix, "rewrite_recipes", c.rewriteRecipes);
+        c.rewriteLibraries = Toml.strList(fix, "rewrite_libraries", c.rewriteLibraries);
 
         Map<String, Object> lintTable = Toml.table(root, "lints");
         Map<String, String> overrides = new LinkedHashMap<>();

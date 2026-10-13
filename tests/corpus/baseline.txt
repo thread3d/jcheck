@@ -1,0 +1,13 @@
+# Corpus measurements: library, source lines, diagnostics under --profile standard.
+# Re-measure with JCHECK_CORPUS_BLESS=1 ./tests/run.sh and review the diff.
+asm	19226	566
+commons-cli	5738	26
+commons-codec	22817	253
+commons-collections4	70229	320
+commons-lang3	92981	423
+commons-math3	223987	3969
+gson	16650	615
+jsoup	23374	858
+rxjava	183555	3159
+slf4j-api	6991	259
+snakeyaml	18699	915

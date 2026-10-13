@@ -131,7 +131,7 @@ alone, because tools word the same problem differently. Diagnostics that are the
 only when code, file, line, *and detail lines* match — javac reports one missing type twice, and
 merging on the message alone would have collapsed two genuinely different unresolved names.
 
-**Catalog entries are data.** 203 rows in TSV resources map `(source, source_key)` to a stable
+**Catalog entries are data.** 208 rows in TSV resources map `(source, source_key)` to a stable
 code, tier, curated headline and help lines. Unmapped keys are never dropped: they get a stable
 `J9xxx` code derived from an FNV-1a hash of the key, and are flagged as needing curation.
 
@@ -204,9 +204,12 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   configured recipes (by default MissingOverrideAnnotation, FinalizeLocalVariables and
   UseTryWithResources) in a forked JVM, one recipe per pass so each change keeps its own name.
   Sources are snapshotted first and every edit is reverted when the re-check gets worse, like the
-  other fix paths. Every applied change is reported with a catalog code — J1501, J1502, J1503, or
-  J1500 for a recipe with no curated row — so a rewrite is auditable in the same model as any other
-  finding. jcheck itself has no OpenRewrite dependency.
+  other fix paths. Every applied change is reported with a catalog code — J1501 MissingOverride,
+  J1502 FinalizeLocalVariables, J1503 UseTryWithResources, J1504 UnnecessaryParentheses, J1505
+  EmptyNewlineAtEndOfFile, J1506 CodeCleanup, or J1500 for a recipe with no curated row — so a
+  rewrite is auditable in the same model as any other finding. Recipes come from any library on the
+  runner classpath: `rewrite-static-analysis`, `rewrite-java` itself, and anything added through
+  `[fix] rewrite_libraries`. jcheck itself has no OpenRewrite dependency.
 - **Multi-module builds** — a Gradle build contributes its own source sets (the init script prints
   each project's `java` and, when the Kotlin plugin is present, `kotlin` source directories), and a
   Maven `pom.xml` contributes its declared `<modules>` and each module's
@@ -224,13 +227,13 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   per-session process and source-change subscriptions. See [MCP interface](#mcp-interface).
 - **`init`, `fix`, `explain`, `fmt`, `build`, `test`** — including a JUnit XML parser that lifts
   project stack frames above framework frames.
-- **Tests** — 1327 assertions: unit tests plus 22 rustc-style UI golden cases under
+- **Tests** — 1351–1353 assertions: unit tests plus 22 rustc-style UI golden cases under
   `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output. Set
   `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end analyzer cases (Error Prone, NullAway, the
-  Checker Framework, SpotBugs, jcstress, OpenRewrite, the five-library corpus and `jcheck-junit`),
-  which need downloaded jars; that run has 1367 assertions on JDK 20 and fewer on 21 (1365) and 25
-  (1357), where an analyzer or corpus library that does not support the JDK is skipped rather than
-  counted green.
+  Checker Framework, SpotBugs, jcstress, OpenRewrite, the eleven-library corpus and `jcheck-junit`),
+  which need downloaded jars; that run has 1427 assertions on JDK 20, 1424 on 21 and 1416 on 25,
+  where an analyzer or corpus library that does not support the JDK is skipped rather than counted
+  green.
 - **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
   (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
   `Todo()`/`Unreachable()`/`Unimplemented()` markers behind J0902, and a sealed `Result` type.
@@ -251,8 +254,10 @@ overstate itself:
   Tooling API itself is not embedded, and a build tool that is absent leaves only the directory
   walk.
 - **OpenRewrite coverage is opt-in and Java-only.** `jcheck rewrite` runs the recipes named in
-  `[fix] rewrite_recipes` from `rewrite-static-analysis`; other recipe libraries are not resolved,
-  and a recipe that is not on the classpath fails loudly rather than being skipped.
+  `[fix] rewrite_recipes`; the recipe libraries are whatever `rewrite-static-analysis`,
+  `rewrite-java` and `[fix] rewrite_libraries` put on the runner classpath, and a recipe that is not
+  there fails loudly rather than being skipped. Other OpenRewrite language frontends (Kotlin,
+  Python, …) are not wired up.
 
 ## Testing the tool
 
@@ -263,18 +268,25 @@ end-to-end analyzer cases — Error Prone, NullAway, the Checker Framework, Spot
 when one is present and skips otherwise.
 
 Not covered here, and stated so a green run is not mistaken for more than it is: a broad
-false-positive corpus. The suite runs the T3 pack over five real libraries — Apache Commons Lang,
-Gson, Apache Commons Collections, Apache Commons Codec and Apache Commons CLI, 208k lines in total —
-and asserts that each library which compiles there reaches T3, finds something, stays under 250
-diagnostics per kLOC and leaves no upstream key uncatalogued; it currently reports about 8 per kLOC.
-Commons Collections 4.4 does not compile on JDK 21 or 25, so it is skipped on those rather than
-counted; five libraries are still not a corpus. The suite runs on JDK 20, 21 and 25; on 25 the
-analyzers that do not support it are skipped rather than counted green. The daemon tests cover
-classpath change, stale cache, concurrent requests, malformed frames, shutdown and out-of-memory
-recovery (a constrained-heap daemon must answer rather than hang, and a fresh one must come up
-afterwards). Every catalog entry is checked to have an implementation, every machine-applicable
-suggestion is applied and re-checked, and the incremental planner is tested for the body-change,
-API-change and classpath-change rules.
+false-positive corpus. The suite runs the T3 pack over eleven real libraries' `-sources` jars —
+Commons Lang, Gson, Commons Collections, Commons Codec, Commons CLI, Commons Math, SnakeYAML, jsoup,
+ASM, SLF4J and RxJava, 684k lines in total — and asserts that each library which compiles there
+reaches T3, finds something, stays under 250 diagnostics per kLOC, keeps any single code under 60
+per kLOC, and leaves no upstream key uncatalogued, against the checked-in measurements in
+`tests/corpus/baseline.txt` (re-measure with `JCHECK_CORPUS_BLESS=1`); it currently reports about 17
+per kLOC. A library whose sources need a companion jar (RxJava needs reactive-streams, jsoup needs
+jspecify) gets it in the project's `lib/`, exactly as a real project would declare it. Commons
+Collections 4.4 does not compile on JDK 21 or 25, so it is skipped on those rather than counted;
+eleven libraries are still not every library. The corpus has already earned its keep by catching two
+real bugs: a package directory named `build` was silently dropped from the source list (commons-io
+has `org.apache.commons.io.build`), and a diagnostic pointing into an already-closed jar filesystem
+failed the entire run instead of degrading to a line/column span. The suite runs on JDK 20, 21 and
+25; on 25 the analyzers that do not support it are skipped rather than counted green. The daemon
+tests cover classpath change, stale cache, concurrent requests, malformed frames, shutdown and
+out-of-memory recovery (a constrained-heap daemon must answer rather than hang, and a fresh one must
+come up afterwards). Every catalog entry is checked to have an implementation, every
+machine-applicable suggestion is applied and re-checked, and the incremental planner is tested for
+the body-change, API-change and classpath-change rules.
 
 ## Environment
 

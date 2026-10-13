@@ -269,12 +269,21 @@ public final class CheckCommand {
             CheckReport report = Engine.run(ob.build());
             return new Analysis(report, null);
         } catch (RuntimeException e) {
-            return new Analysis(null, "jcheck: " + e.getMessage() + "\n");
+            if ("1".equals(System.getenv("JCHECK_DEBUG"))) {
+                e.printStackTrace();
+            }
+            return new Analysis(null, "jcheck: internal error: " + describe(e) + "\n");
         } finally {
             if (!req.keepScratch) {
                 deleteRecursively(scratch);
             }
         }
+    }
+
+    /** A message for a failure the user did not cause; never the string "null". */
+    private static String describe(RuntimeException e) {
+        String message = e.getMessage();
+        return message == null || message.isBlank() ? e.getClass().getName() : message;
     }
 
     static void deleteRecursively(Path dir) {

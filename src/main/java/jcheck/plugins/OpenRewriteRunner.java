@@ -182,6 +182,7 @@ public final class OpenRewriteRunner {
         if (config.rewriteKotlin) {
             coordinates.add("org.openrewrite:rewrite-kotlin:" + rewriteVersion);
         }
+        coordinates.addAll(config.rewriteLibraries);
         PluginClasspath.Result extra = PluginClasspath.resolveCoordinates(coordinates,
             config.pluginClasspath, root, config.pluginOffline, config.pluginRepo);
         notes.addAll(extra.notes);

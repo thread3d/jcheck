@@ -27,7 +27,13 @@ public final class SpanResolver {
             try {
                 CharSequence cs = source.getCharContent(true);
                 content = cs == null ? null : cs.toString();
-            } catch (IOException | UnsupportedOperationException e) {
+            } catch (IOException | RuntimeException e) {
+                /*
+                 * The text is a nicety, not a requirement. A diagnostic can point into a jar (javac
+                 * reads some classpath files through a zip filesystem), and that filesystem may
+                 * already be closed by the time the span is built: a ClosedFileSystemException here
+                 * must degrade to a line/column span, never fail the whole run.
+                 */
                 content = null;
             }
         }

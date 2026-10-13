@@ -33,9 +33,15 @@ import jcheck.config.JcheckConfig;
  */
 public final class BuildModel {
 
-    private static final Set<String> SKIP_DIRS = Set.of(
-        "build", "target", "out", ".git", ".gradle", ".idea", "node_modules",
-        "bin", "dist", "generated", ".jcheck");
+    /*
+     * A source tree can legitimately contain a package named "build" (commons-io has
+     * org.apache.commons.io.build), so build-output names are skipped only when they are the top
+     * level of a scanned root. VCS, IDE and tooling metadata is skipped wherever it appears.
+     */
+    private static final Set<String> OUTPUT_DIRS = Set.of(
+        "build", "target", "out", "bin", "dist", "generated");
+    private static final Set<String> VCS_DIRS = Set.of(
+        ".git", ".gradle", ".idea", ".jcheck", "node_modules");
 
     private static final List<String> SOURCE_ROOT_CANDIDATES = List.of(
         "src/main/java", "src/test/java", "src/main/kotlin");
@@ -271,10 +277,17 @@ public final class BuildModel {
 
     private static List<Path> expand(Path root, List<Path> candidates) {
         List<Path> out = new ArrayList<>();
+        Path normalRoot = root.normalize();
         for (Path c : candidates) {
             Path p = c.isAbsolute() ? c.normalize() : root.resolve(c).normalize();
+            /*
+             * Only the bare project-root fallback prunes build-output names: an explicit source root
+             * may legitimately contain a package called "build" (commons-io's
+             * org.apache.commons.io.build), and dropping it silently is a false negative.
+             */
+            boolean pruneOutput = p.equals(normalRoot);
             if (Files.isDirectory(p)) {
-                out.addAll(javaFiles(p));
+                out.addAll(javaFiles(p, pruneOutput));
             } else if (Files.isRegularFile(p) && p.toString().endsWith(".java")) {
                 out.add(p);
             }
@@ -282,12 +295,12 @@ public final class BuildModel {
         return out;
     }
 
-    private static List<Path> javaFiles(Path dir) {
+    private static List<Path> javaFiles(Path dir, boolean pruneOutput) {
         try (Stream<Path> stream = Files.walk(dir)) {
             List<Path> out = new ArrayList<>();
             stream.filter(Files::isRegularFile)
                 .filter(p -> p.toString().endsWith(".java"))
-                .filter(p -> !hasSkippedSegment(dir, p))
+                .filter(p -> !hasSkippedSegment(dir, p, pruneOutput))
                 .sorted()
                 .forEach(out::add);
             return out;
@@ -296,7 +309,7 @@ public final class BuildModel {
         }
     }
 
-    private static boolean hasSkippedSegment(Path base, Path file) {
+    private static boolean hasSkippedSegment(Path base, Path file, boolean pruneOutput) {
         Path rel;
         try {
             rel = base.relativize(file);
@@ -304,7 +317,11 @@ public final class BuildModel {
             return false;
         }
         for (Path part : rel) {
-            if (SKIP_DIRS.contains(part.toString())) {
+            String name = part.toString();
+            if (name.startsWith(".") || VCS_DIRS.contains(name)) {
+                return true;
+            }
+            if (pruneOutput && OUTPUT_DIRS.contains(name)) {
                 return true;
             }
         }
@@ -327,7 +344,13 @@ public final class BuildModel {
                             return FileVisitResult.CONTINUE;
                         }
                         String name = dir.getFileName() == null ? "" : dir.getFileName().toString();
-                        if (SKIP_DIRS.contains(name) || name.startsWith(".")) {
+                        /*
+                         * Here the walk sees the whole project, so a "build" directory at any depth
+                         * is a build output (module-a/build/classes/...), unlike a package inside a
+                         * declared source root.
+                         */
+                        if (name.startsWith(".") || VCS_DIRS.contains(name)
+                            || OUTPUT_DIRS.contains(name)) {
                             return FileVisitResult.SKIP_SUBTREE;
                         }
                         for (String candidate : SOURCE_ROOT_CANDIDATES) {

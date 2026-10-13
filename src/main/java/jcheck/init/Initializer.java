@@ -249,6 +249,7 @@ public final class Initializer {
             + "rewrite_recipes = [\"org.openrewrite.staticanalysis.MissingOverrideAnnotation\",\n"
             + "                   \"org.openrewrite.staticanalysis.FinalizeLocalVariables\",\n"
             + "                   \"org.openrewrite.staticanalysis.UseTryWithResources\"]\n"
+            + "rewrite_libraries = []   # extra recipe artifacts for the rewrite runner\n"
             + "\n"
             + "[llm]\n"
             + "max_diagnostics = 15\n"

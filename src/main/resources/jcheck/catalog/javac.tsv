@@ -117,3 +117,5 @@ javac	compiler.warn.unchecked.meth.invocation.applied	J0474	2	unchecked method i
 javac	compiler.err.override.incompatible.ret	J0260	2	{0} in {1} clashes with {2}: incompatible return type	incompatible return type	override	return the same type, or make the override generic	docs/J0260.md
 javac	compiler.err.override.weaker.access	J0261	2	{0} in {1} cannot override {2}: weaker access privileges	weaker access	override	widen the overriding method's access to match	docs/J0261.md
 javac	compiler.warn.dangling.doc.comment	J0475	2	dangling documentation comment	dangling doc comment	dangling-javadoc	attach the comment to a declaration or remove it	docs/J0475.md
+javac	compiler.warn.missing.deprecated.annotation	J0476	2	{0} is deprecated and does not have an @Deprecated annotation	missing @Deprecated	deprecation	annotate the deprecated declaration so callers see it	docs/J0476.md
+javac	compiler.warn.varargs.redundant.trustme.anno	J0477	2	redundant @TrustMe annotation on a varargs method	redundant @TrustMe	varargs-trustme	remove the annotation; the compiler already trusts this method	docs/J0477.md

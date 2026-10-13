@@ -99,6 +99,7 @@ final class UnitTests {
         dependencyResolverTests();
         incrementalPlanTests();
         multiModuleTests();
+        sourceScanTests();
         gradleSourceSetTests();
         mavenResolverTests();
         suggestionRoundTripTests();
@@ -395,39 +396,122 @@ final class UnitTests {
         }
     }
 
+    // ---- source scanning ----------------------------------------------------
+
+    /**
+     * A package may legitimately be called {@code build} (commons-io has
+     * {@code org.apache.commons.io.build}), so inside a declared source root only hidden and VCS
+     * directories are skipped. The bare project-root fallback still prunes build outputs.
+     */
+    private static void sourceScanTests() throws Exception {
+        Path tmp = Files.createTempDirectory("jcheck-scan-");
+        try {
+            Path pkg = tmp.resolve("src/main/java/org/example/build");
+            Files.createDirectories(pkg);
+            Files.writeString(pkg.resolve("Thing.java"),
+                "package org.example.build;\npublic final class Thing {}\n");
+            Path hidden = tmp.resolve("src/main/java/.hidden");
+            Files.createDirectories(hidden);
+            Files.writeString(hidden.resolve("Hidden.java"),
+                "package x;\npublic final class Hidden {}\n");
+
+            JcheckConfig config = JcheckConfig.load(tmp);
+            BuildModel model = BuildModel.resolve(tmp, config, null, null, null, null);
+            List<String> names = model.sources.stream()
+                .map(p -> p.getFileName().toString()).sorted().toList();
+            check("scan:package-named-build", names.contains("Thing.java"), names.toString());
+            check("scan:skips-hidden", !names.contains("Hidden.java"), names.toString());
+        } finally {
+            deleteRecursively(tmp);
+        }
+
+        // With no source roots at all the model falls back to the project root, where "build" is
+        // an output directory and its contents must not be mistaken for sources.
+        Path flat = Files.createTempDirectory("jcheck-flat-");
+        try {
+            Files.writeString(flat.resolve("Loose.java"),
+                "public final class Loose {}\n");
+            Path output = flat.resolve("build/gen");
+            Files.createDirectories(output);
+            Files.writeString(output.resolve("Generated.java"),
+                "public final class Generated {}\n");
+
+            JcheckConfig config = JcheckConfig.load(flat);
+            BuildModel model = BuildModel.resolve(flat, config, null, null, null, null);
+            List<String> names = model.sources.stream()
+                .map(p -> p.getFileName().toString()).sorted().toList();
+            check("scan:fallback-keeps-loose", names.contains("Loose.java"), names.toString());
+            check("scan:fallback-prunes-build", !names.contains("Generated.java"), names.toString());
+        } finally {
+            deleteRecursively(flat);
+        }
+    }
+
     // ---- real-project corpus ------------------------------------------------
 
     /**
-     * Runs the T3 pack over five real libraries' own {@code -sources} jars and records diagnostics
-     * per kLOC, per library and in total. This is the false-positive guard the curated cases cannot
-     * be: a rule that explodes on ordinary code shows up here as a noise-budget failure instead of
-     * in a user's first run. Opt-in, because it downloads the sources jars.
+     * Runs the T3 pack over real libraries' own {@code -sources} jars — including multi-jar
+     * libraries whose sources need a companion — and records diagnostics per kLOC, per library and
+     * in total. This is the false-positive guard the curated cases cannot be: a rule that explodes
+     * on ordinary code shows up here as a noise-budget or baseline failure instead of in a user's
+     * first run. The measured numbers live in {@code tests/corpus/baseline.txt}; re-measure with
+     * {@code JCHECK_CORPUS_BLESS=1}. Opt-in, because it downloads the sources jars.
      */
     private static void corpusTests() throws Exception {
         if (!"1".equals(System.getenv("JCHECK_TEST_PLUGINS"))) {
             return;
         }
+        List<List<String>> groups = List.of(
+            List.of("org.apache.commons:commons-lang3:3.14.0:sources"),
+            List.of("com.google.code.gson:gson:2.10.1:sources"),
+            List.of("org.apache.commons:commons-collections4:4.4:sources"),
+            List.of("commons-codec:commons-codec:1.16.1:sources"),
+            List.of("commons-cli:commons-cli:1.6.0:sources"),
+            List.of("org.apache.commons:commons-math3:3.6.1:sources"),
+            List.of("org.yaml:snakeyaml:2.2:sources"),
+            List.of("org.jsoup:jsoup:1.17.2:sources", "org.jspecify:jspecify:0.3.0"),
+            List.of("org.ow2.asm:asm:9.6:sources"),
+            List.of("org.slf4j:slf4j-api:2.0.13:sources"),
+            List.of("io.reactivex.rxjava3:rxjava:3.1.8:sources",
+                    "org.reactivestreams:reactive-streams:1.0.4:sources"));
         MavenResolver resolver = MavenResolver.standard(false);
-        List<String> coordinates = List.of(
-            "org.apache.commons:commons-lang3:3.14.0:sources",
-            "com.google.code.gson:gson:2.10.1:sources",
-            "org.apache.commons:commons-collections4:4.4:sources",
-            "commons-codec:commons-codec:1.16.1:sources",
-            "commons-cli:commons-cli:1.6.0:sources");
+        boolean bless = "1".equals(System.getenv("JCHECK_CORPUS_BLESS"));
+        Map<String, long[]> baseline = readCorpusBaseline();
+        Map<String, long[]> measured = new java.util.TreeMap<>();
         int libraries = 0;
         int skipped = 0;
         int totalDiagnostics = 0;
         long totalLines = 0;
         int totalUncatalogued = 0;
-        for (String coordinate : coordinates) {
-            List<Path> jars = resolver.resolve(List.of(coordinate));
-            if (jars.isEmpty()) {
-                continue;
-            }
-            String label = coordinate.split(":")[1];
+        java.util.TreeMap<String, Integer> byCode = new java.util.TreeMap<>();
+        for (List<String> group : groups) {
+            String label = group.get(0).split(":")[1];
             Path dir = Files.createTempDirectory("jcheck-corpus-");
             try {
-                extractSources(jars.get(0), dir);
+                Path lib = dir.resolve("lib");
+                boolean found = false;
+                for (String coordinate : group) {
+                    List<Path> resolved = resolver.resolve(List.of(coordinate));
+                    if (resolved.isEmpty()) {
+                        continue;
+                    }
+                    found = true;
+                    if (coordinate.endsWith(":sources")) {
+                        extractSources(resolved.get(0), dir);
+                    } else {
+                        /*
+                         * A binary companion goes into the project's lib/, which jcheck puts on the
+                         * compile classpath: annotation libraries a real project would declare are
+                         * what make its sources compile standalone.
+                         */
+                        Files.createDirectories(lib);
+                        Files.copy(resolved.get(0), lib.resolve(resolved.get(0).getFileName().toString()),
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    }
+                }
+                if (!found) {
+                    continue;
+                }
                 CheckRequest req = new CheckRequest();
                 req.root = dir.toString();
                 req.profile = "standard";
@@ -438,9 +522,9 @@ final class UnitTests {
                 }
                 if (!analysis.report.tiers.ran(Tier.T3)) {
                     /*
-                     * The library itself does not compile on this JDK (Commons Collections 4.4 does
-                     * not on 21 or 25). That is the library's incompatibility, not jcheck's, so its
-                     * diagnostics are reported but not counted against the guard.
+                     * The library itself does not compile on this JDK, or its sources need a
+                     * companion jar that is not part of the group. That is a property of the corpus
+                     * entry, not of jcheck, so its diagnostics are reported but not counted.
                      */
                     skipped++;
                     System.out.println("corpus: " + label + " did not reach T3 on JDK "
@@ -450,21 +534,26 @@ final class UnitTests {
                 int count = analysis.report.diagnostics.size();
                 int uncatalogued = 0;
                 for (jcheck.model.Diagnostic d : analysis.report.diagnostics) {
+                    byCode.merge(d.code, 1, Integer::sum);
                     if (d.code.startsWith("J9")) {
                         uncatalogued++;
                     }
                 }
-                long lines = 0;
-                try (var walk = Files.walk(dir)) {
-                    for (Path p : walk.filter(x -> x.toString().endsWith(".java")).toList()) {
-                        lines += Files.readAllLines(p).size();
-                    }
-                }
+                long lines = countLines(dir);
                 double perKloc = lines == 0 ? 0 : count * 1000.0 / lines;
                 check("corpus:has-findings:" + label, count > 0,
                     "the pack found nothing in " + label + ", which is suspicious");
                 check("corpus:noise-budget:" + label, perKloc < 250,
                     "diagnostics/kLOC=" + Math.round(perKloc) + " over " + lines + " lines");
+                long[] base = baseline.get(label);
+                if (base != null) {
+                    check("corpus:baseline:" + label, count <= base[1] * 1.25 + 10,
+                        "diagnostics=" + count + " baseline=" + base[1]);
+                } else if (!bless) {
+                    check("corpus:baseline-known:" + label, false,
+                        "no baseline row for " + label + "; re-measure with JCHECK_CORPUS_BLESS=1");
+                }
+                measured.put(label, new long[]{lines, count});
                 System.out.println("corpus: " + label + " " + count + " diagnostics over " + lines
                     + " lines (" + Math.round(perKloc) + "/kLOC), " + uncatalogued + " uncatalogued");
                 libraries++;
@@ -475,15 +564,69 @@ final class UnitTests {
                 deleteRecursively(dir);
             }
         }
-        check("corpus:libraries", libraries >= 3, "analyzed " + libraries + " libraries");
+        check("corpus:libraries", libraries >= 5, "analyzed " + libraries + " libraries");
         check("corpus:uncatalogued-none", totalUncatalogued == 0,
             totalUncatalogued + " uncatalogued upstream key(s)");
         double perKloc = totalLines == 0 ? 0 : totalDiagnostics * 1000.0 / totalLines;
         check("corpus:total-noise-budget", perKloc < 250,
             "diagnostics/kLOC=" + Math.round(perKloc));
+        int worstCode = byCode.values().stream().mapToInt(Integer::intValue).max().orElse(0);
+        check("corpus:no-dominant-code", worstCode * 1000.0 / Math.max(1, totalLines) < 60,
+            "the most frequent code appears " + worstCode + " times over " + totalLines + " lines");
         System.out.println("corpus: " + libraries + " libraries (" + skipped
             + " skipped on this JDK), " + totalDiagnostics + " diagnostics over " + totalLines
             + " lines (" + Math.round(perKloc) + "/kLOC)");
+        if (bless) {
+            writeCorpusBaseline(measured);
+            System.out.println("corpus: baseline written to tests/corpus/baseline.txt");
+        }
+    }
+
+    private static long countLines(Path dir) throws IOException {
+        long lines = 0;
+        try (var walk = Files.walk(dir)) {
+            for (Path p : walk.filter(x -> x.toString().endsWith(".java")).toList()) {
+                lines += Files.readAllLines(p).size();
+            }
+        }
+        return lines;
+    }
+
+    /** The checked-in corpus measurements: {@code library lines diagnostics} per row. */
+    private static Map<String, long[]> readCorpusBaseline() throws IOException {
+        Map<String, long[]> out = new java.util.TreeMap<>();
+        Path file = Path.of("tests/corpus/baseline.txt");
+        if (!Files.isRegularFile(file)) {
+            return out;
+        }
+        for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
+            String trimmed = line.strip();
+            if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+                continue;
+            }
+            String[] parts = trimmed.split("\\s+");
+            if (parts.length >= 3) {
+                try {
+                    out.put(parts[0], new long[]{Long.parseLong(parts[1]), Long.parseLong(parts[2])});
+                } catch (NumberFormatException ignored) {
+                    // a hand-edited row simply has no baseline to compare against
+                }
+            }
+        }
+        return out;
+    }
+
+    private static void writeCorpusBaseline(Map<String, long[]> measured) throws IOException {
+        Path file = Path.of("tests/corpus/baseline.txt");
+        Files.createDirectories(file.getParent());
+        StringBuilder sb = new StringBuilder(
+            "# Corpus measurements: library, source lines, diagnostics under --profile standard.\n"
+            + "# Re-measure with JCHECK_CORPUS_BLESS=1 ./tests/run.sh and review the diff.\n");
+        for (Map.Entry<String, long[]> e : measured.entrySet()) {
+            sb.append(e.getKey()).append('\t').append(e.getValue()[0]).append('\t')
+              .append(e.getValue()[1]).append('\n');
+        }
+        Files.writeString(file, sb.toString(), StandardCharsets.UTF_8);
     }
 
     /** Extracts the {@code .java} entries of a jar into a directory. */
@@ -1035,6 +1178,28 @@ final class UnitTests {
         eq("plugins:rewrite-clean", 0, rwOut.exitCode);
         deleteRecursively(rw);
 
+        // Recipes from two different libraries: rewrite-static-analysis and rewrite-java itself.
+        Path jf = Files.createTempDirectory("jcheck-rewrite-java-it-");
+        Path jfSrc = jf.resolve("src/main/java/demo");
+        Files.createDirectories(jfSrc);
+        Files.writeString(jfSrc.resolve("P.java"),
+            "package demo;\npublic final class P {\n    int f(int a, int b) {\n"
+            + "        return (a + b);\n    }\n}", StandardCharsets.UTF_8);
+        Files.writeString(jf.resolve("jcheck.toml"),
+            "[errorprone]\ncustom_pack = false\n\n[fix]\nrewrite_recipes = ["
+            + "\"org.openrewrite.staticanalysis.UnnecessaryParentheses\", "
+            + "\"org.openrewrite.java.format.EmptyNewlineAtEndOfFile\"]\n",
+            StandardCharsets.UTF_8);
+        CheckRequest jfReq = new CheckRequest();
+        jfReq.root = jf.toString();
+        CheckCommand.Outcome jfOut = RewriteCommand.run(jfReq);
+        String parenthesised = Files.readString(jfSrc.resolve("P.java"), StandardCharsets.UTF_8);
+        check("plugins:rewrite-parentheses", parenthesised.contains("return a + b;"), parenthesised);
+        check("plugins:rewrite-final-newline", parenthesised.endsWith("}\n"), parenthesised);
+        check("plugins:rewrite-java-code", jfOut.stdout.contains("J1505"), jfOut.stdout);
+        check("plugins:rewrite-static-code", jfOut.stdout.contains("J1504"), jfOut.stdout);
+        deleteRecursively(jf);
+
         junitHarnessIntegrationTest();
     }
 
@@ -1206,6 +1371,22 @@ final class UnitTests {
         Span unknown = r.span("missing.java", null, -1, -1, 12, 4);
         eq("span:fallback-line", 12, unknown.lineStart());
         eq("span:fallback-col", 4, unknown.colStart());
+
+        /*
+         * A diagnostic can point into a jar whose zip filesystem is already closed; the span must
+         * fall back to the reported line/column instead of failing the run.
+         */
+        javax.tools.JavaFileObject closed = new javax.tools.SimpleJavaFileObject(
+            java.net.URI.create("string:///A.java"),
+            javax.tools.JavaFileObject.Kind.SOURCE) {
+            @Override
+            public CharSequence getCharContent(boolean ignoreEncodingErrors) {
+                throw new java.nio.file.ClosedFileSystemException();
+            }
+        };
+        Span fromClosedZip = r.span("B.java", closed, -1, -1, 7, 3);
+        eq("span:closed-zip-line", 7, fromClosedZip.lineStart());
+        eq("span:closed-zip-col", 3, fromClosedZip.colStart());
     }
 
     // ---- toml and config ---------------------------------------------------

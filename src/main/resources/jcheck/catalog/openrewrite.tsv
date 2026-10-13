@@ -3,3 +3,6 @@ openrewrite	OpenRewriteRecipe	J1500	5	OpenRewrite recipe applied	recipe applied	
 openrewrite	org.openrewrite.staticanalysis.MissingOverrideAnnotation	J1501	5	added a missing @Override	missing @Override	missing-override	the annotation makes a signature drift a compile error	docs/J1501.md
 openrewrite	org.openrewrite.staticanalysis.FinalizeLocalVariables	J1502	5	made a local variable final	can be final	can-be-final	the variable is assigned once and never reassigned	docs/J1502.md
 openrewrite	org.openrewrite.staticanalysis.UseTryWithResources	J1503	5	converted a manual close into try-with-resources	use try-with-resources	unclosed-resource	prefer try-with-resources for every AutoCloseable	docs/J1503.md
+openrewrite	org.openrewrite.staticanalysis.UnnecessaryParentheses	J1504	5	removed unnecessary parentheses	unnecessary parentheses	unnecessary-parentheses	the parentheses do not change precedence	docs/J1504.md
+openrewrite	org.openrewrite.java.format.EmptyNewlineAtEndOfFile	J1505	5	added the missing newline at the end of the file	missing final newline	final-newline	POSIX tooling expects a trailing newline	docs/J1505.md
+openrewrite	org.openrewrite.staticanalysis.CodeCleanup	J1506	5	applied the CodeCleanup recipe set	code cleanup	code-cleanup	review each change the composite made	docs/J1506.md

@@ -28,6 +28,8 @@ the headlines, labels and help lines live in the TSV resources under
 | J0473 | RedundantCast | T2 flow | warn |
 | J0474 | UncheckedMethodInvocation | T2 flow | warn |
 | J0475 | DanglingDocComment | T2 flow | warn |
+| J0476 | MissingDeprecatedAnnotation | T2 flow | warn |
+| J0477 | RedundantTrustMeAnnotation | T2 flow | warn |
 | J0301 | UncheckedArithmetic | T3 jcheck-checks | deny in `@Checked` |
 | J0302 | LossyCast | T3 jcheck-checks | deny |
 | J0601 | SharedMutableWithoutGuard | T3 jcheck-checks | deny in `@ThreadSafe` |
@@ -45,6 +47,13 @@ the headlines, labels and help lines live in the TSV resources under
 | J1201 | StressTestFailure | T5 jcstress | deny |
 | J1301 | AddOverride | T3 jcheck-checks | warn |
 | J1401 | InferFinding | T5 infer | warn |
+| J1500 | OpenRewriteRecipe | T5 rewrite | note |
+| J1501 | MissingOverrideAnnotation | T5 rewrite | note |
+| J1502 | FinalizeLocalVariables | T5 rewrite | note |
+| J1503 | UseTryWithResources | T5 rewrite | note |
+| J1504 | UnnecessaryParentheses | T5 rewrite | note |
+| J1505 | EmptyNewlineAtEndOfFile | T5 rewrite | note |
+| J1506 | CodeCleanup | T5 rewrite | note |
 
 ## Reading a page
 
