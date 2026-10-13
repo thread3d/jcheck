@@ -11,6 +11,7 @@ import jcheck.cli.Args;
 import jcheck.cli.CheckCommand;
 import jcheck.cli.CheckRequest;
 import jcheck.cli.Main;
+import jcheck.cli.TestCommand;
 
 /**
  * jcheck's own test runner. No JUnit, no network: it compiles with the same JDK the tool needs
@@ -158,6 +159,15 @@ public final class TestMain {
         CheckRequest req = Main.buildRequest(a);
         req.root = inputDir.toString();
         return CheckCommand.run(req);
+    }
+
+    /** Like {@link #runCase} but drives {@code jcheck test} instead of the static check pipeline. */
+    static CheckCommand.Outcome runTestCommand(Path inputDir, String cmdLine) {
+        String[] args = cmdLine.isEmpty() ? new String[0] : cmdLine.split("\\s+");
+        Args a = Args.parse(args, Main.VALUE_FLAGS);
+        CheckRequest req = Main.buildRequest(a);
+        req.root = inputDir.toString();
+        return TestCommand.run(req);
     }
 
     private static String diff(String expected, String actual) {

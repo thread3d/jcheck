@@ -65,6 +65,10 @@ public final class JcheckConfig {
     public String threadLeaks = "fail";
     public String fdLeaks = "fail";
     public boolean mutationTesting = false;
+    /** {@code delegate} (ask the build tool) or {@code console} (run the launcher with jcheck-junit). */
+    public String testLauncher = "delegate";
+    /** Randomize test method order and print the seed for reproducibility. */
+    public boolean randomTestOrder = false;
     public int llmMaxDiagnostics = 15;
     public int llmContextLines = 2;
     /** Per-code overrides from the {@code [lints]} table: code to deny|warn|allow|error|warning. */
@@ -155,6 +159,8 @@ public final class JcheckConfig {
         c.threadLeaks = Toml.str(tests, "thread_leaks", c.threadLeaks);
         c.fdLeaks = Toml.str(tests, "fd_leaks", c.fdLeaks);
         c.mutationTesting = Toml.bool(tests, "mutation_testing", c.mutationTesting);
+        c.testLauncher = Toml.str(tests, "launcher", c.testLauncher);
+        c.randomTestOrder = Toml.bool(tests, "random_order", c.randomTestOrder);
         c.consoleLauncher = Toml.str(tests, "console_launcher", null);
         c.reportDir = Toml.str(tests, "report_dir", null);
 

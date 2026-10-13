@@ -26,7 +26,7 @@ Requires a JDK and nothing else — no Gradle, no Maven, no network.
 | --- | --- |
 | `jcheck check` | Fast path: in-process javac plus the jcheck check pack, no artifacts. |
 | `jcheck build` | Runs a clean check first, then delegates to the build tool. |
-| `jcheck test` | Delegates to the build tool, then renders JUnit XML reports as diagnostics. |
+| `jcheck test` | Delegates to the build tool, then renders JUnit XML reports as diagnostics. `--launcher` runs the tests through the JUnit Platform Console Launcher with `jcheck-junit` attached. |
 | `jcheck fix` | Applies machine-applicable suggestions, re-checks, reverts if errors rose. |
 | `jcheck fmt` | google-java-format, or the project's Spotless task. |
 | `jcheck explain <code>` | Long-form explanation: why it matters, failing and fixed example. |
@@ -166,6 +166,12 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   region survive; with FindSecBugs enabled its plugin jar is loaded too. Patterns map through the
   SpotBugs catalog to `J04xx`. If the compile produced no class files, T5 says so rather than
   reporting a quiet clean.
+- **`jcheck-junit` (T5)** — `jcheck test --launcher` (or `[tests] launcher = "console"`) runs the
+  project's tests through the JUnit Platform Console Launcher with a jcheck extension attached: a
+  per-test timeout with a thread dump, thread-leak and file-descriptor-leak detection, uncaught
+  exception capture, and optional randomized order with the seed printed. The extension source
+  ships with jcheck and is compiled against the project's own JUnit Platform at test time, so
+  jcheck carries no JUnit dependency and the extension always matches the platform version.
 - **Daemon** — length-prefixed binary protocol over a Unix domain socket, keyed by a hash of the
   project root so serving a project never writes into it. `jcheck check` uses a running daemon
   automatically and falls back in-process.
@@ -173,10 +179,11 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   per-session process and source-change subscriptions. See [MCP interface](#mcp-interface).
 - **`init`, `fix`, `explain`, `fmt`, `build`, `test`** — including a JUnit XML parser that lifts
   project stack frames above framework frames.
-- **Tests** — 1186+ assertions: unit tests plus 21 rustc-style UI golden cases under
+- **Tests** — 1193 assertions: unit tests plus 21 rustc-style UI golden cases under
   `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output. Set
-  `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end Error Prone/NullAway case, which needs analyzer
-  jars.
+  `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end analyzer cases (Error Prone, NullAway, the
+  Checker Framework, SpotBugs and `jcheck-junit`), which need downloaded jars; that run has 1205
+  assertions.
 - **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
   (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
   `Todo()`/`Unreachable()`/`Unimplemented()` markers behind J0902, and a sealed `Result` type.
@@ -193,8 +200,6 @@ overstate itself:
   under the jcheck cache directory and keyed by a fingerprint of the build files, so a warm daemon
   does not pay twice. When the tool is absent or the resolution fails, the heuristic classpath is
   kept and the limitation is stated on every run where it applies.
-- **No `jcheck-junit` extension** — timeouts, thread-leak and fd-leak detection are not built;
-  `jcheck test` parses JUnit XML produced by the build tool.
 - **No incremental dependents graph, PIT, JaCoCo, jcstress/Lincheck, Infer, or LSP bridge.**
 - **`jcheck fix` is not a patch engine** — it applies `SuggestedFix`-style edits from the
   diagnostic model, not Error Prone patch mode or OpenRewrite recipes.

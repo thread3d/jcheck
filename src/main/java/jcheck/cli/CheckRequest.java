@@ -24,6 +24,8 @@ public final class CheckRequest {
     public boolean errorProne;
     /** Never reach the network for plugin jars on this run. */
     public boolean pluginOffline;
+    /** Run tests through the JUnit Platform Console Launcher with jcheck-junit attached. */
+    public boolean testLauncher;
     public List<Path> sources = new ArrayList<>();
     public List<Path> classpath = new ArrayList<>();
     public Integer release;

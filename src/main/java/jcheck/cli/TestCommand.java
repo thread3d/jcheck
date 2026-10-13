@@ -14,6 +14,7 @@ import jcheck.model.TierReport;
 import jcheck.render.RenderOptions;
 import jcheck.render.Renderer;
 import jcheck.render.Renderers;
+import jcheck.testharness.JUnitHarness;
 import jcheck.testharness.JUnitXmlParser;
 
 /**
@@ -34,29 +35,38 @@ public final class TestCommand {
             return new CheckCommand.Outcome(CheckCommand.EXIT_TOOL_FAILURE, "", "jcheck: " + e.getMessage() + "\n");
         }
 
-        String tool = BuildModel.detectBuildTool(root);
-        Path executable = BuildModel.findBuildExecutable(tool);
-        if (executable == null) {
-            return new CheckCommand.Outcome(CheckCommand.EXIT_TOOL_FAILURE, "",
-                "jcheck: " + tool + " is not installed or not on PATH; `jcheck test` delegates execution to "
-                + "the project's build tool or the JUnit Platform Console Launcher\n");
-        }
-
+        boolean launcher = req.testLauncher || "console".equalsIgnoreCase(config.testLauncher);
         List<String> notes = new ArrayList<>();
-        notes.add("delegated test execution to " + executable + " test");
-
         int buildExit;
-        try {
-            ProcessBuilder pb = new ProcessBuilder(executable.toString(), "test")
-                .directory(root.toFile())
-                .inheritIO();
-            buildExit = pb.start().waitFor();
-        } catch (IOException e) {
-            return new CheckCommand.Outcome(CheckCommand.EXIT_TOOL_FAILURE, "",
-                "jcheck: cannot run " + executable + ": " + e.getMessage() + "\n");
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return new CheckCommand.Outcome(CheckCommand.EXIT_TOOL_FAILURE, "", "jcheck: interrupted\n");
+        if (launcher) {
+            JUnitHarness.Result harness = JUnitHarness.run(root, config, notes);
+            if (!harness.available) {
+                return new CheckCommand.Outcome(CheckCommand.EXIT_TOOL_FAILURE, "",
+                    "jcheck: " + String.join("\njcheck: ", harness.notes) + "\n");
+            }
+            buildExit = harness.exitCode;
+        } else {
+            String tool = BuildModel.detectBuildTool(root);
+            Path executable = BuildModel.findBuildExecutable(root, tool);
+            if (executable == null) {
+                return new CheckCommand.Outcome(CheckCommand.EXIT_TOOL_FAILURE, "",
+                    "jcheck: " + tool + " is not installed or not on PATH; `jcheck test` delegates "
+                    + "execution to the project's build tool, or run `jcheck test --launcher` to use "
+                    + "the JUnit Platform Console Launcher with jcheck-junit attached\n");
+            }
+            notes.add("delegated test execution to " + executable + " test");
+            try {
+                ProcessBuilder pb = new ProcessBuilder(executable.toString(), "test")
+                    .directory(root.toFile())
+                    .inheritIO();
+                buildExit = pb.start().waitFor();
+            } catch (IOException e) {
+                return new CheckCommand.Outcome(CheckCommand.EXIT_TOOL_FAILURE, "",
+                    "jcheck: cannot run " + executable + ": " + e.getMessage() + "\n");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return new CheckCommand.Outcome(CheckCommand.EXIT_TOOL_FAILURE, "", "jcheck: interrupted\n");
+            }
         }
 
         Path reportDir = resolveReportDir(root, config, notes);

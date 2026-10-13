@@ -132,6 +132,7 @@ public final class Main {
         req.reportSuppressions = a.has("report-suppressions");
         req.errorProne = a.has("error-prone");
         req.pluginOffline = a.has("offline");
+        req.testLauncher = a.has("launcher");
         List<Path> sources = new ArrayList<>();
         for (String s : a.getAllSplit("sources")) {
             sources.add(Path.of(s));
@@ -402,6 +403,7 @@ public final class Main {
             "  --report-suppressions                   list every suppression found",
             "  --error-prone                           attach Error Prone and NullAway for this run",
             "  --offline                               never download plugin jars; fail if not cached",
+            "  --launcher                              run tests via the JUnit Platform Console Launcher",
             "  --root <dir>                            project root (default .)",
             "  --sources/--classpath <paths>           override build model inputs",
             "  --release N                             compile against a release level",

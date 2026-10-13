@@ -10,6 +10,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import javax.tools.JavaCompiler;
+import javax.tools.StandardJavaFileManager;
+import javax.tools.StandardLocation;
+import javax.tools.ToolProvider;
 import jcheck.build.BuildModel;
 import jcheck.build.DependencyResolver;
 import jcheck.catalog.Catalog;
@@ -248,6 +252,56 @@ final class UnitTests {
         contains("plugins:spotbugs-report", sbOut.stdout, "source: spotbugs");
         contains("plugins:tier5", sbOut.stdout, "analysis reached T5");
         deleteRecursively(sb);
+
+        junitHarnessIntegrationTest();
+    }
+
+    /**
+     * Opt-in end-to-end check for {@code jcheck test --launcher}: a leaking test must fail through
+     * the jcheck JUnit extension and surface as a J0901 diagnostic.
+     */
+    private static void junitHarnessIntegrationTest() throws Exception {
+        MavenResolver resolver = MavenResolver.standard(false);
+        List<Path> launcher = resolver.resolve(List.of(
+            "org.junit.platform:junit-platform-console-standalone:1.10.2"));
+        if (launcher.isEmpty()) {
+            return;
+        }
+        Path tmp = Files.createTempDirectory("jcheck-junit-it-");
+        Path testSrc = tmp.resolve("src/test/java/demo/SampleTest.java");
+        Files.createDirectories(testSrc.getParent());
+        Files.writeString(testSrc,
+            "package demo;\n"
+            + "import org.junit.jupiter.api.Test;\n"
+            + "class SampleTest {\n"
+            + "    @Test\n"
+            + "    void leaksThread() {\n"
+            + "        Thread t = new Thread(() -> {\n"
+            + "            try { Thread.sleep(60_000); } catch (Exception ignored) { }\n"
+            + "        }, \"jcheck-leak-thread\");\n"
+            + "        t.setDaemon(true);\n"
+            + "        t.start();\n"
+            + "    }\n"
+            + "}\n", StandardCharsets.UTF_8);
+        Path classes = tmp.resolve("build/classes/java/test");
+        Files.createDirectories(classes);
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        boolean compiled = false;
+        try (StandardJavaFileManager fm = compiler.getStandardFileManager(null, null,
+                StandardCharsets.UTF_8)) {
+            fm.setLocationFromPaths(StandardLocation.CLASS_PATH, List.of(launcher.get(0)));
+            compiled = compiler.getTask(null, fm, null, List.of("-d", classes.toString()), null,
+                fm.getJavaFileObjects(testSrc)).call();
+        }
+        check("plugins:junit-test-compiled", compiled, "the sample test did not compile");
+        Files.writeString(tmp.resolve("jcheck.toml"), "[tests]\ntimeout_seconds = 5\n",
+            StandardCharsets.UTF_8);
+
+        CheckCommand.Outcome out = TestMain.runTestCommand(tmp, "--launcher");
+        check("plugins:junit-thread-leak", out.stdout.contains("thread leak detected"),
+            "stdout=" + out.stdout + " stderr=" + out.stderr);
+        check("plugins:junit-diagnostic", out.stdout.contains("J0901"), "stdout=" + out.stdout);
+        deleteRecursively(tmp);
     }
 
     // ---- catalog -----------------------------------------------------------

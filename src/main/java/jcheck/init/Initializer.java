@@ -233,6 +233,8 @@ public final class Initializer {
             + "thread_leaks     = \"fail\"\n"
             + "fd_leaks         = \"fail\"\n"
             + "mutation_testing = false\n"
+            + "launcher         = \"delegate\"   # or \"console\" for jcheck-junit\n"
+            + "random_order     = false\n"
             + "\n"
             + "[llm]\n"
             + "max_diagnostics = 15\n"
