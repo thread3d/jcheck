@@ -31,6 +31,35 @@ public final class CheckRequest {
     public List<Path> sources = new ArrayList<>();
     public List<Path> classpath = new ArrayList<>();
     public Integer release;
+    /** Caller-provided scratch directory; null means a temporary one. */
+    public Path scratchDir;
+    /** Keep the scratch directory after the run (the incremental class output). */
+    public boolean keepScratch;
+
+    /** An independent copy, so a caller can vary the sources without mutating the template. */
+    public CheckRequest copy() {
+        CheckRequest c = new CheckRequest();
+        c.root = root;
+        c.format = format;
+        c.maxDiagnostics = maxDiagnostics;
+        c.contextLines = contextLines;
+        c.profile = profile;
+        c.deny = new ArrayList<>(deny);
+        c.warn = new ArrayList<>(warn);
+        c.allow = new ArrayList<>(allow);
+        c.denyWarnings = denyWarnings;
+        c.reportSuppressions = reportSuppressions;
+        c.errorProne = errorProne;
+        c.pluginOffline = pluginOffline;
+        c.testLauncher = testLauncher;
+        c.coverage = coverage;
+        c.sources = new ArrayList<>(sources);
+        c.classpath = new ArrayList<>(classpath);
+        c.release = release;
+        c.scratchDir = scratchDir;
+        c.keepScratch = keepScratch;
+        return c;
+    }
 
     public CheckRequest root(String v) {
         this.root = v;

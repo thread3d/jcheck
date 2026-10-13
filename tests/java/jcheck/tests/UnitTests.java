@@ -23,6 +23,8 @@ import javax.tools.StandardLocation;
 import javax.tools.ToolProvider;
 import jcheck.build.BuildModel;
 import jcheck.build.DependencyResolver;
+import jcheck.build.IncrementalCache;
+import jcheck.build.IncrementalPlan;
 import jcheck.catalog.Catalog;
 import jcheck.catalog.CatalogEntry;
 import jcheck.cli.CheckCommand;
@@ -42,6 +44,7 @@ import jcheck.explain.Explainer;
 import jcheck.fix.FixApplier;
 import jcheck.init.Initializer;
 import jcheck.lsp.LspServer;
+import jcheck.mcp.ProjectState;
 import jcheck.model.Applicability;
 import jcheck.model.CheckReport;
 import jcheck.model.Diagnostic;
@@ -91,6 +94,7 @@ final class UnitTests {
         initializerTests();
         buildModelTests();
         dependencyResolverTests();
+        incrementalPlanTests();
         mavenResolverTests();
         suggestionRoundTripTests();
         daemonTests();
@@ -198,6 +202,113 @@ final class UnitTests {
         } finally {
             check("daemon:shutdown", DaemonClient.shutdown(root.toString()),
                 "daemon did not shut down");
+            deleteRecursively(root);
+        }
+    }
+
+    // ---- incremental planning ----------------------------------------------
+
+    /**
+     * The API-signature rule: a body-only change recompiles just that file, a signature change also
+     * recompiles its dependents, and a changed classpath invalidates everything.
+     */
+    private static void incrementalPlanTests() throws Exception {
+        String previousCache = System.getProperty("jcheck.cache.dir");
+        Path cache = Files.createTempDirectory("jcheck-incremental-cache-");
+        System.setProperty("jcheck.cache.dir", cache.toString());
+        Path root = Files.createTempDirectory("jcheck-incremental-");
+        try {
+            Path src = root.resolve("src/main/java/demo");
+            Files.createDirectories(src);
+            Path a = src.resolve("A.java");
+            Path b = src.resolve("B.java");
+            Files.writeString(a,
+                "package demo;\npublic final class A {\n"
+                + "    public static int value() {\n        return 1;\n    }\n}\n",
+                StandardCharsets.UTF_8);
+            Files.writeString(b,
+                "package demo;\npublic final class B {\n"
+                + "    public static int use() {\n        return A.value();\n    }\n}\n",
+                StandardCharsets.UTF_8);
+            Path c = src.resolve("C.java");
+            Files.writeString(c,
+                "package demo;\npublic final class C {\n"
+                + "    public static int alone() {\n        return 3;\n    }\n}\n",
+                StandardCharsets.UTF_8);
+            List<Path> sources = List.of(a, b, c);
+
+            IncrementalPlan.Plan first = IncrementalPlan.compute(root, sources, List.of(), null,
+                List.of(), List.of(), true);
+            check("incremental:first-run-is-full", first.full, first.summary);
+            IncrementalCache.save(root, first.fingerprint, first.index);
+            Files.createDirectories(IncrementalCache.classesDir(root));
+
+            Thread.sleep(20);
+            Files.writeString(a,
+                "package demo;\npublic final class A {\n"
+                + "    public static int value() {\n        return 20;\n    }\n}\n",
+                StandardCharsets.UTF_8);
+            IncrementalPlan.Plan body = IncrementalPlan.compute(root, sources, List.of(), null,
+                List.of(), List.of(), false);
+            check("incremental:body-change-recompiles-one",
+                !body.full && body.recompile.size() == 1
+                    && "A.java".equals(body.recompile.get(0).getFileName().toString()),
+                body.summary);
+
+            IncrementalCache.save(root, body.fingerprint, body.index);
+            Thread.sleep(20);
+            Files.writeString(a,
+                "package demo;\npublic final class A {\n"
+                + "    public static long value() {\n        return 20;\n    }\n}\n",
+                StandardCharsets.UTF_8);
+            IncrementalPlan.Plan api = IncrementalPlan.compute(root, sources, List.of(), null,
+                List.of(), List.of(), false);
+            check("incremental:api-change-adds-dependent",
+                !api.full && api.recompile.size() == 2, api.summary);
+
+            IncrementalCache.save(root, api.fingerprint, api.index);
+            IncrementalPlan.Plan flags = IncrementalPlan.compute(root, sources,
+                List.of(Path.of("/tmp/some.jar")), null, List.of(), List.of(), false);
+            check("incremental:classpath-change-is-full", flags.full, flags.summary);
+
+            // A warm session: changing one file must not lose another file's cached finding.
+            Path proj = Files.createTempDirectory("jcheck-inc-session-");
+            Path psrc = proj.resolve("src/main/java/demo");
+            Files.createDirectories(psrc);
+            Files.writeString(psrc.resolve("F.java"),
+                "package demo;\npublic final class F {\n"
+                + "    static int twice(int x) {\n        int y = x * 2;\n        return y;\n    }\n}\n",
+                StandardCharsets.UTF_8);
+            Files.writeString(psrc.resolve("G.java"),
+                "package demo;\npublic final class G {\n"
+                + "    static int one() {\n        int z = 1;\n        return z;\n    }\n}\n",
+                StandardCharsets.UTF_8);
+            CheckRequest sessionRequest = new CheckRequest();
+            sessionRequest.root = proj.toString();
+            ProjectState state = new ProjectState(proj, sessionRequest);
+            CheckReport firstReport = state.report();
+            check("incremental:session-initial-findings",
+                firstReport.diagnostics.stream().anyMatch(d -> "J0706".equals(d.code)),
+                "no J0706 on the first analysis");
+
+            Thread.sleep(20);
+            Files.writeString(psrc.resolve("F.java"),
+                "package demo;\npublic final class F {\n"
+                + "    static int twice(int x) {\n        int y = x * 3;\n        return y;\n    }\n}\n",
+                StandardCharsets.UTF_8);
+            CheckReport refreshed = state.refresh();
+            check("incremental:session-keeps-other-file-finding",
+                refreshed.diagnostics.stream().anyMatch(d -> "J0706".equals(d.code)
+                    && d.primary != null && d.primary.file().endsWith("G.java")),
+                "the finding in the untouched file was lost");
+            deleteRecursively(proj);
+        } finally {
+            if (previousCache == null) {
+                System.clearProperty("jcheck.cache.dir");
+            } else {
+                System.setProperty("jcheck.cache.dir", previousCache);
+            }
+            deleteRecursively(cache);
             deleteRecursively(root);
         }
     }

@@ -5,12 +5,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import jcheck.build.BuildModel;
+import jcheck.build.IncrementalCache;
+import jcheck.build.IncrementalPlan;
 import jcheck.cli.CheckCommand;
 import jcheck.cli.CheckRequest;
 import jcheck.config.JcheckConfig;
+import jcheck.engine.DiagnosticOrder;
 import jcheck.model.CheckReport;
+import jcheck.model.Diagnostic;
 import jcheck.model.Tier;
 import jcheck.model.TierReport;
 
@@ -117,19 +123,143 @@ public final class ProjectState {
         return refresh();
     }
 
-    /** Forces a fresh analysis regardless of the fingerprint. */
+    /**
+     * Forces a fresh analysis. Inside a warm session this recompiles only the changed files and
+     * their API dependents, merging the fresh findings with the cached ones for everything else;
+     * the first run, a changed classpath or flags, a removed source, or an incremental compile that
+     * does not come back clean all fall back to a full re-check.
+     */
     public synchronized CheckReport refresh() {
         model = resolveModel();
-        CheckCommand.Analysis analysis = CheckCommand.analyze(template);
+        CheckReport incremental = tryIncremental();
+        if (incremental != null) {
+            lastError = null;
+            cachedReport = incremental;
+            cachedFingerprint = fingerprint();
+            return cachedReport;
+        }
+        return fullRefresh();
+    }
+
+    private CheckReport fullRefresh() {
+        boolean incremental = config.incremental && cacheUsable();
+        IncrementalPlan.Plan plan = null;
+        CheckRequest request = template.copy();
+        if (incremental) {
+            plan = IncrementalPlan.compute(root, model.sources, model.classpath, model.release,
+                config.lint, config.javacExtra, true);
+            Path classes = IncrementalCache.classesDir(root);
+            deleteRecursively(classes);
+            request.scratchDir = classes;
+            request.keepScratch = true;
+        }
+        CheckCommand.Analysis analysis = CheckCommand.analyze(request);
         if (analysis.ok()) {
             lastError = null;
             cachedReport = analysis.report;
+            if (plan != null && !hasJavacError(analysis.report)) {
+                IncrementalCache.save(root, plan.fingerprint, plan.index);
+            }
         } else {
             lastError = analysis.error == null ? "analysis failed" : analysis.error.strip();
             cachedReport = CheckReport.empty(emptyTiers());
         }
         cachedFingerprint = fingerprint();
         return cachedReport;
+    }
+
+    private CheckReport tryIncremental() {
+        if (!config.incremental || cachedReport == null || !cacheUsable()) {
+            return null;
+        }
+        IncrementalPlan.Plan plan = IncrementalPlan.compute(root, model.sources, model.classpath,
+            model.release, config.lint, config.javacExtra, false);
+        if (plan.full || !Files.isDirectory(plan.classesDir)) {
+            return null;
+        }
+        CheckRequest request = template.copy();
+        request.sources = new ArrayList<>(plan.recompile);
+        List<Path> classpath = new ArrayList<>(template.classpath);
+        if (!classpath.contains(plan.classesDir)) {
+            classpath.add(plan.classesDir);
+        }
+        request.classpath = classpath;
+        request.scratchDir = plan.classesDir;
+        request.keepScratch = true;
+
+        CheckCommand.Analysis analysis = CheckCommand.analyze(request);
+        if (!analysis.ok() || hasJavacError(analysis.report)) {
+            return null;
+        }
+        IncrementalCache.save(root, plan.fingerprint, plan.index);
+        return merge(cachedReport, analysis.report, plan.recompile);
+    }
+
+    /** Fresh findings win; findings for files that were not recompiled are carried over. */
+    private CheckReport merge(CheckReport previous, CheckReport fresh, List<Path> recompiled) {
+        Set<String> files = new HashSet<>();
+        for (Path p : recompiled) {
+            files.add(relativize(p));
+        }
+        List<Diagnostic> merged = new ArrayList<>(fresh.diagnostics);
+        for (Diagnostic d : previous.diagnostics) {
+            String file = d.primary == null ? null : d.primary.file();
+            if (file == null || !files.contains(file)) {
+                merged.add(d);
+            }
+        }
+        List<String> notes = new ArrayList<>(previous.toolNotes);
+        for (String note : fresh.toolNotes) {
+            if (!notes.contains(note)) {
+                notes.add(note);
+            }
+        }
+        return new CheckReport(DiagnosticOrder.sort(merged), fresh.dropped, fresh.suppressions,
+            fresh.tiers, notes, fresh.configErrors);
+    }
+
+    /** Incremental compilation needs a writable cache for the class output; otherwise fall back. */
+    private boolean cacheUsable() {
+        try {
+            Files.createDirectories(IncrementalCache.dir(root));
+            return true;
+        } catch (IOException | RuntimeException e) {
+            return false;
+        }
+    }
+
+    private String relativize(Path p) {
+        try {
+            return root.relativize(p.toAbsolutePath().normalize()).toString();
+        } catch (IllegalArgumentException e) {
+            return p.toString();
+        }
+    }
+
+    private static boolean hasJavacError(CheckReport report) {
+        for (Diagnostic d : report.diagnostics) {
+            if (d.isError() && "javac".equals(d.source)) {
+                return true;
+            }
+        }
+        return report.configErrors != null && !report.configErrors.isEmpty();
+    }
+
+    private static void deleteRecursively(Path dir) {
+        if (dir == null || !Files.exists(dir)) {
+            return;
+        }
+        try (var walk = Files.walk(dir)) {
+            walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.deleteIfExists(p);
+                } catch (IOException ignored) {
+                    // best effort
+                }
+            });
+        } catch (IOException ignored) {
+            // best effort
+        }
     }
 
     /** The cached report when one already exists, without triggering an analysis. */

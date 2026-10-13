@@ -156,8 +156,12 @@ public final class MavenResolver {
             List.of(URI.create("https://repo1.maven.org/maven2/")), offline);
     }
 
-    /** {@code $JCHECK_CACHE_DIR} or {@code ~/.cache/jcheck}. */
+    /** {@code jcheck.cache.dir}, {@code $JCHECK_CACHE_DIR}, or {@code ~/.cache/jcheck}. */
     public static Path defaultCacheDir() {
+        String property = System.getProperty("jcheck.cache.dir");
+        if (property != null && !property.isBlank()) {
+            return Path.of(property);
+        }
         String env = System.getenv("JCHECK_CACHE_DIR");
         if (env != null && !env.isBlank()) {
             return Path.of(env);

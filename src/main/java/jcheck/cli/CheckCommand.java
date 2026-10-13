@@ -146,10 +146,19 @@ public final class CheckCommand {
         }
 
         Path scratch;
-        try {
-            scratch = Files.createTempDirectory("jcheck-scratch-");
-        } catch (IOException e) {
-            return new Analysis(null, "jcheck: cannot create a scratch directory: " + e.getMessage() + "\n");
+        if (req.scratchDir != null) {
+            scratch = req.scratchDir;
+            try {
+                Files.createDirectories(scratch);
+            } catch (IOException e) {
+                return new Analysis(null, "jcheck: cannot create " + scratch + ": " + e.getMessage() + "\n");
+            }
+        } else {
+            try {
+                scratch = Files.createTempDirectory("jcheck-scratch-");
+            } catch (IOException e) {
+                return new Analysis(null, "jcheck: cannot create a scratch directory: " + e.getMessage() + "\n");
+            }
         }
 
         String profile = req.profile != null ? req.profile : config.profile;
@@ -260,7 +269,9 @@ public final class CheckCommand {
         } catch (RuntimeException e) {
             return new Analysis(null, "jcheck: " + e.getMessage() + "\n");
         } finally {
-            deleteRecursively(scratch);
+            if (!req.keepScratch) {
+                deleteRecursively(scratch);
+            }
         }
     }
 

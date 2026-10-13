@@ -191,6 +191,7 @@ public final class Initializer {
             + "jdk     = " + jdk + "\n"
             + "modules = []\n"
             + "resolve_classpath = true      # ask the build tool for its dependency classpath\n"
+            + "incremental       = true      # warm-daemon recompilation by API signature\n"
             + "\n"
             + "[profile]\n"
             + "name = \"strict\"               # strict | standard | lenient\n"

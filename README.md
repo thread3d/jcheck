@@ -183,6 +183,11 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
 - **Coverage (T5)** — `jcheck test --launcher --coverage` (or `[tests] coverage = true`) runs the
   test JVM under the JaCoCo agent and reports uncovered and partly covered lines as `J1102`, so
   "the tests pass" and "the code is tested" stop being the same sentence.
+- **Incremental recompilation (warm daemon)** — the MCP server and LSP bridge keep an API-hash
+  index of the source tree. After an edit they recompile only the changed files plus the dependents
+  whose files reference a changed API; fresh findings are merged with the cached ones for files that
+  were not recompiled. Anything uncertain — a removed source, a changed classpath/flags/JDK, or an
+  incremental compile that does not come back clean — falls back to a full re-check.
 - **Daemon** — length-prefixed binary protocol over a Unix domain socket, keyed by a hash of the
   project root so serving a project never writes into it. `jcheck check` uses a running daemon
   automatically and falls back in-process.
@@ -211,9 +216,8 @@ overstate itself:
   under the jcheck cache directory and keyed by a fingerprint of the build files, so a warm daemon
   does not pay twice. When the tool is absent or the resolution fails, the heuristic classpath is
   kept and the limitation is stated on every run where it applies.
-- **No incremental dependents graph, jcstress hook, or Infer integration yet.**
-  Lincheck-style tests run as ordinary JUnit tests under `jcheck test --launcher`, so they are
-  covered without a separate hook.
+- **No jcstress hook or Infer integration yet.** Lincheck-style tests run as ordinary JUnit tests
+  under `jcheck test --launcher`, so they are covered without a separate hook.
 - **`jcheck fix` does not run OpenRewrite recipes.** It applies the diagnostic model's
   machine-applicable suggestions and, with `--error-prone`, Error Prone's own patch mode
   (`-XepPatchChecks` / `-XepPatchLocation:IN_PLACE`); the sources are snapshotted first and every
