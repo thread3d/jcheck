@@ -136,7 +136,15 @@ merging on the message alone would have collapsed two genuinely different unreso
 code, tier, curated headline and help lines. Unmapped keys are never dropped: they get a stable
 `J9xxx` code derived from an FNV-1a hash of the key, and are flagged as needing curation.
 
-## What is implemented
+## What it does
+
+The behaviour inventory rather than the specification: SPEC.md defines the scope, this says what each
+command does, which codes it emits, and where it stops. Nothing in SPEC.md's milestones (M0–M4) is
+outstanding — the feedback loop, Error Prone/NullAway and the level policy, the test harness, the
+check pack and analyzers, and M4's Maven support, incremental dependents graph, OpenRewrite catalog,
+PIT, JaCoCo, the jcstress and Lincheck hooks, Infer, the LSP bridge and CI SARIF are all
+implemented. What a feature does *not* cover is under "Limitations"; things the spec never asked for
+are under "Out of scope".
 
 - **Build model** — Gradle/Maven/flat detection, source root and classpath discovery, `--sources`
   and `--classpath` overrides, and dependency-classpath resolution by running the project's own
@@ -255,12 +263,6 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
   `Todo()`/`Unreachable()`/`Unimplemented()` markers behind J0902, and a sealed `Result` type.
   `./build.sh` produces `out/jcheck-support.jar`.
-
-Nothing in SPEC.md's milestones (M0–M4) is outstanding: every capability they name — the feedback
-loop, Error Prone/NullAway and the level policy, the test harness, the check pack and analyzers, and
-M4's Maven support, incremental dependents graph, OpenRewrite catalog, PIT, JaCoCo, the jcstress and
-Lincheck hooks, Infer, the LSP bridge and CI SARIF — is implemented. What a feature does *not* cover
-is under "Limitations" below; things the spec never asked for are under "Out of scope".
 
 ## Limitations
 
