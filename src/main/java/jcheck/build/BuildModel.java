@@ -38,20 +38,23 @@ public final class BuildModel {
     public final List<Path> classpath;
     public final List<Path> processorPath;
     public final Integer release;
+    /** True when the dependency classpath came from the build tool or an explicit override. */
+    public final boolean classpathResolved;
     /** Limitations the user must see: unresolved dependency graphs, missing source roots. */
     public final List<String> notes;
     /** Purely informational resolution details; never rendered. */
     public final List<String> info;
 
     private BuildModel(Path root, String buildTool, List<Path> sources, List<Path> classpath,
-                       List<Path> processorPath, Integer release, List<String> notes,
-                       List<String> info) {
+                       List<Path> processorPath, Integer release, boolean classpathResolved,
+                       List<String> notes, List<String> info) {
         this.root = root;
         this.buildTool = buildTool;
         this.sources = List.copyOf(sources);
         this.classpath = List.copyOf(classpath);
         this.processorPath = List.copyOf(processorPath);
         this.release = release;
+        this.classpathResolved = classpathResolved;
         this.notes = List.copyOf(notes);
         this.info = List.copyOf(info);
     }
@@ -116,14 +119,34 @@ public final class BuildModel {
                 classpath.add(p);
             }
         }
-        if (("gradle".equals(tool) || "maven".equals(tool)) && classpathOverrides.isEmpty()) {
-            notes.add("build tool is " + tool + "; its dependency graph is not resolved yet, "
-                + "so third-party types may appear unresolved. Pass --classpath or run through the build tool.");
-        }
-
         List<Path> processorPath = new ArrayList<>();
         for (Path p : processorOverrides) {
             processorPath.add(absRoot.resolve(p).normalize());
+        }
+
+        /*
+         * When the project has a build tool, ask it for the real dependency classpath instead of
+         * guessing. A failure here is stated as a note and the heuristic classpath above is kept.
+         */
+        boolean classpathResolved = !classpathOverrides.isEmpty();
+        if (("gradle".equals(tool) || "maven".equals(tool)) && classpathOverrides.isEmpty()
+            && config.resolveClasspath) {
+            DependencyResolver.Result deps = DependencyResolver.resolve(absRoot, tool,
+                findBuildExecutable(absRoot, tool));
+            classpath.addAll(deps.classpath);
+            for (Path p : deps.processorPath) {
+                if (!processorPath.contains(p)) {
+                    processorPath.add(p);
+                }
+            }
+            notes.addAll(deps.notes);
+            classpathResolved = deps.resolved;
+            if (deps.resolved) {
+                info.add("classpath resolved from " + tool);
+            }
+        } else if (("gradle".equals(tool) || "maven".equals(tool)) && classpathOverrides.isEmpty()) {
+            notes.add("build-tool classpath resolution is disabled in jcheck.toml; "
+                + "third-party types may appear unresolved");
         }
 
         Integer release = releaseOverride != null ? releaseOverride : config.release;
@@ -132,7 +155,7 @@ public final class BuildModel {
         }
 
         return new BuildModel(absRoot, tool, sources, new ArrayList<>(classpath), processorPath,
-            release, notes, info);
+            release, classpathResolved, notes, info);
     }
 
     public static String detectBuildTool(Path root) {
@@ -150,16 +173,31 @@ public final class BuildModel {
 
     /** Locates the build tool executable, or null when it is not installed. */
     public static Path findBuildExecutable(String buildTool) {
+        return findBuildExecutable(Path.of("."), buildTool);
+    }
+
+    /**
+     * Locates the build tool, preferring the project's wrapper ({@code gradlew}/{@code mvnw}) so the
+     * version the project pinned is the version that resolves its graph.
+     */
+    public static Path findBuildExecutable(Path root, String buildTool) {
         String name;
+        String wrapper;
         switch (buildTool) {
             case "gradle":
                 name = "gradle";
+                wrapper = "gradlew";
                 break;
             case "maven":
                 name = "mvn";
+                wrapper = "mvnw";
                 break;
             default:
                 return null;
+        }
+        Path wrapped = root.resolve(wrapper);
+        if (Files.isExecutable(wrapped)) {
+            return wrapped;
         }
         String path = System.getenv("PATH");
         if (path == null) {
@@ -171,7 +209,6 @@ public final class BuildModel {
                 return candidate;
             }
         }
-        Path wrapper = Path.of("").toAbsolutePath();
         return null;
     }
 

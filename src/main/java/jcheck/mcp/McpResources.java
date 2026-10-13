@@ -255,10 +255,14 @@ public final class McpResources {
         sb.append("- Catalog: ").append(catalog.size())
           .append(" mapped codes. An unmapped upstream key still gets a stable `J9xxx` code "
               + "derived from its key, so nothing is dropped, but it has no curated explanation.\n");
-        if ("gradle".equals(model.buildTool) || "maven".equals(model.buildTool)) {
+        if (("gradle".equals(model.buildTool) || "maven".equals(model.buildTool))
+            && !model.classpathResolved) {
             sb.append("- The ").append(model.buildTool)
-              .append(" dependency graph is not resolved, so third-party types can appear "
+              .append(" dependency graph was not read, so third-party types can appear "
                   + "unresolved. Pass `--classpath` to close that gap.\n");
+        } else if (model.classpathResolved && !"flat".equals(model.buildTool)) {
+            sb.append("- The dependency classpath was resolved from ").append(model.buildTool)
+              .append(", so third-party types resolve as the build resolves them.\n");
         }
         sb.append("- Suppressions are never blanket: `").append(SUPPRESSIONS)
           .append("` lists every one so a reviewer can audit them.\n");

@@ -19,6 +19,8 @@ public final class JcheckConfig {
     public String build = "auto";
     public Integer jdk;
     public Integer release;
+    /** Whether to ask the build tool for its dependency classpath. */
+    public boolean resolveClasspath = true;
     public List<String> modules = List.of();
     /** Explicit source roots, relative to the project root. */
     public List<String> sourceRoots = List.of();
@@ -98,6 +100,7 @@ public final class JcheckConfig {
         c.build = Toml.str(project, "build", c.build);
         c.jdk = Toml.integer(project, "jdk", null);
         c.release = Toml.integer(project, "release", null);
+        c.resolveClasspath = Toml.bool(project, "resolve_classpath", c.resolveClasspath);
         c.modules = Toml.strList(project, "modules", c.modules);
         c.sourceRoots = Toml.strList(project, "sources", c.sourceRoots);
 

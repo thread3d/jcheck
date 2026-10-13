@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import jcheck.build.BuildModel;
+import jcheck.build.DependencyResolver;
 import jcheck.catalog.Catalog;
 import jcheck.catalog.CatalogEntry;
 import jcheck.cli.CheckCommand;
@@ -72,8 +73,36 @@ final class UnitTests {
         explainTests(repoRoot);
         initializerTests();
         buildModelTests();
+        dependencyResolverTests();
         mavenResolverTests();
         errorProneIntegrationTests();
+    }
+
+    // ---- dependency resolution ---------------------------------------------
+
+    /**
+     * The build-tool resolver's parsing is exercised offline: the marker protocol, the Maven
+     * classpath split, and the cache fingerprint tracking the build file.
+     */
+    private static void dependencyResolverTests() throws Exception {
+        DependencyResolver.Parsed parsed = DependencyResolver.parseGradleOutput(
+            "noise\nJCHECK_CLASSPATH_BEGIN\n/a/x.jar\n/b/y.jar\n"
+            + "JCHECK_PROCESSOR\n/c/ap.jar\nJCHECK_CLASSPATH_END\n");
+        check("deps:gradle-parsed",
+            parsed != null && parsed.classpath.size() == 2 && parsed.processorPath.size() == 1,
+            "parsed=" + parsed);
+        check("deps:gradle-null-without-markers",
+            DependencyResolver.parseGradleOutput("nothing here") == null, null);
+        check("deps:maven-split", DependencyResolver.splitClasspath(
+            "/a/x.jar" + java.io.File.pathSeparator + "/b/y.jar").size() == 2, null);
+
+        Path tmp = Files.createTempDirectory("jcheck-fingerprint-");
+        Files.writeString(tmp.resolve("build.gradle"), "plugins { }", StandardCharsets.UTF_8);
+        String first = DependencyResolver.fingerprint(tmp);
+        Files.writeString(tmp.resolve("build.gradle"), "plugins { id 'java' }", StandardCharsets.UTF_8);
+        String second = DependencyResolver.fingerprint(tmp);
+        check("deps:fingerprint-tracks-build-file", !first.equals(second), "fingerprint did not change");
+        deleteRecursively(tmp);
     }
 
     // ---- plugin resolution -------------------------------------------------

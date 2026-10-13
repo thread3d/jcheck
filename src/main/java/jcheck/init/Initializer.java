@@ -190,6 +190,7 @@ public final class Initializer {
             + "build   = \"" + buildTool + "\"            # gradle | maven | flat\n"
             + "jdk     = " + jdk + "\n"
             + "modules = []\n"
+            + "resolve_classpath = true      # ask the build tool for its dependency classpath\n"
             + "\n"
             + "[profile]\n"
             + "name = \"strict\"               # strict | standard | lenient\n"

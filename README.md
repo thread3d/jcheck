@@ -133,7 +133,8 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
 ## What is implemented
 
 - **Build model** — Gradle/Maven/flat detection, source root and classpath discovery, `--sources`
-  and `--classpath` overrides. Limitations are stated in the output rather than glossed over.
+  and `--classpath` overrides, and dependency-classpath resolution by running the project's own
+  build tool. Limitations are stated in the output rather than glossed over.
 - **Analysis runner** — in-process `JavaCompiler` with a diagnostic listener, real start/end
   spans from `Diagnostic.getStartPosition`/`getEndPosition`, `-Xlint`, `-Xdiags:verbose`,
   `--release`, `-proc:none`, and a retry path when a JDK rejects the hidden phase-gating options.
@@ -186,9 +187,12 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
 Stated plainly, because a tool whose whole premise is "a clean check means something" must not
 overstate itself:
 
-- **Gradle Tooling API / Maven resolution** is not driven. The build tool is detected, and
-  `jcheck build`/`test`/`fmt` delegate to it, but the dependency graph is not read, so third-party
-  types can appear unresolved. jcheck says so on every run where that applies.
+- **The Gradle Tooling API and Maven embedder are not used.** jcheck runs the project's own build
+  tool instead — the wrapper first, then `PATH` — and asks it for the compile/runtime and
+  annotation-processor classpath (for Maven, `dependency:build-classpath`). The answer is cached
+  under the jcheck cache directory and keyed by a fingerprint of the build files, so a warm daemon
+  does not pay twice. When the tool is absent or the resolution fails, the heuristic classpath is
+  kept and the limitation is stated on every run where it applies.
 - **No `jcheck-junit` extension** — timeouts, thread-leak and fd-leak detection are not built;
   `jcheck test` parses JUnit XML produced by the build tool.
 - **No incremental dependents graph, PIT, JaCoCo, jcstress/Lincheck, Infer, or LSP bridge.**
