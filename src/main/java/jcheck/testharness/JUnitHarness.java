@@ -16,7 +16,9 @@ import javax.tools.StandardJavaFileManager;
 import javax.tools.StandardLocation;
 import javax.tools.ToolProvider;
 import jcheck.build.BuildModel;
+import jcheck.catalog.Catalog;
 import jcheck.config.JcheckConfig;
+import jcheck.model.Diagnostic;
 import jcheck.plugins.MavenResolver;
 
 /**
@@ -36,11 +38,18 @@ public final class JUnitHarness {
         public final List<String> notes;
         /** False when the harness itself could not run, as opposed to tests failing. */
         public final boolean available;
+        /** Coverage diagnostics, when coverage was requested; empty otherwise. */
+        public final List<Diagnostic> diagnostics;
 
         Result(int exitCode, List<String> notes, boolean available) {
+            this(exitCode, notes, available, List.of());
+        }
+
+        Result(int exitCode, List<String> notes, boolean available, List<Diagnostic> diagnostics) {
             this.exitCode = exitCode;
             this.notes = List.copyOf(notes);
             this.available = available;
+            this.diagnostics = List.copyOf(diagnostics);
         }
     }
 
@@ -65,6 +74,10 @@ public final class JUnitHarness {
     }
 
     public static Result run(Path root, JcheckConfig config, List<String> notes) {
+        return run(root, config, notes, false);
+    }
+
+    public static Result run(Path root, JcheckConfig config, List<String> notes, boolean coverage) {
         Path launcher = launcherJar(root, config, notes);
         if (launcher == null) {
             return unavailable(notes);
@@ -127,9 +140,27 @@ public final class JUnitHarness {
             command.add("-Djunit.jupiter.execution.order.random.seed=" + seed);
             notes.add("random test order, seed " + seed);
         }
+        Path exec = null;
+        if (coverage) {
+            Path agent = CoverageRunner.agent(root, config, notes);
+            if (agent != null) {
+                exec = MavenResolver.defaultCacheDir().resolve("jacoco")
+                    .resolve("test-" + Math.abs(root.toString().hashCode()) + ".exec");
+                try {
+                    Files.createDirectories(exec.getParent());
+                    Files.deleteIfExists(exec);
+                } catch (IOException e) {
+                    notes.add("cannot prepare the JaCoCo output file: " + e.getMessage());
+                    exec = null;
+                }
+            }
+            if (exec != null) {
+                command.add("-javaagent:" + agent
+                    + "=destfile=" + exec + ",append=false,dumponexit=true");
+            }
+        }
         command.add("-cp");
-        command.add(join(classpath));
-        command.add("org.junit.platform.console.ConsoleLauncher");
+        command.add(join(classpath));        command.add("org.junit.platform.console.ConsoleLauncher");
         command.add("execute");
         for (Path scanRoot : scanRoots) {
             command.add("--scan-classpath=" + scanRoot);
@@ -141,7 +172,16 @@ public final class JUnitHarness {
         notes.add("ran tests through the JUnit Platform Console Launcher with jcheck-junit attached");
         try {
             ProcessBuilder pb = new ProcessBuilder(command).directory(root.toFile()).inheritIO();
-            return new Result(pb.start().waitFor(), notes, true);
+            Process process = pb.start();
+            int exit = process.waitFor();
+            List<Diagnostic> diagnostics = new ArrayList<>();
+            if (exec != null) {
+                CoverageRunner.Result cov = CoverageRunner.report(root, config, exec,
+                    MutationRunner.mainSources(model.sources), Catalog.loadDefault());
+                notes.addAll(cov.notes);
+                diagnostics.addAll(cov.diagnostics);
+            }
+            return new Result(exit, notes, true, diagnostics);
         } catch (IOException e) {
             notes.add("cannot start the JUnit Platform Console Launcher: " + e.getMessage());
             return unavailable(notes);

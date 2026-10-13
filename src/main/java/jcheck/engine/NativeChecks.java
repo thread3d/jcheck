@@ -33,7 +33,7 @@ public final class NativeChecks {
         "J0801", "J0902", "J1001", "J1301");
 
     /** jcheck codes emitted outside the compile path, by the test harness. */
-    public static final List<String> IMPLEMENTED_HARNESS_CODES = List.of("J0901", "J1101");
+    public static final List<String> IMPLEMENTED_HARNESS_CODES = List.of("J0901", "J1101", "J1102");
 
     /** Every jcheck code this build can actually emit, from either path. */
     public static final List<String> IMPLEMENTED_CODES = combined();

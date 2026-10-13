@@ -180,6 +180,9 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
 - **Mutation testing (T5)** — `jcheck mutate` runs PIT, scoped with `--sources`, and reports each
   survivor (`J1101`) at its line. The project's JUnit Platform is placed ahead of PIT's own so a
   version clash cannot silently break discovery.
+- **Coverage (T5)** — `jcheck test --launcher --coverage` (or `[tests] coverage = true`) runs the
+  test JVM under the JaCoCo agent and reports uncovered and partly covered lines as `J1102`, so
+  "the tests pass" and "the code is tested" stop being the same sentence.
 - **Daemon** — length-prefixed binary protocol over a Unix domain socket, keyed by a hash of the
   project root so serving a project never writes into it. `jcheck check` uses a running daemon
   automatically and falls back in-process.
@@ -208,7 +211,7 @@ overstate itself:
   under the jcheck cache directory and keyed by a fingerprint of the build files, so a warm daemon
   does not pay twice. When the tool is absent or the resolution fails, the heuristic classpath is
   kept and the limitation is stated on every run where it applies.
-- **No incremental dependents graph, JaCoCo coverage, jcstress hook, or Infer integration yet.**
+- **No incremental dependents graph, jcstress hook, or Infer integration yet.**
   Lincheck-style tests run as ordinary JUnit tests under `jcheck test --launcher`, so they are
   covered without a separate hook.
 - **`jcheck fix` does not run OpenRewrite recipes.** It applies the diagnostic model's

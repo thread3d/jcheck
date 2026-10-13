@@ -234,6 +234,8 @@ public final class Initializer {
             + "fd_leaks         = \"fail\"\n"
             + "mutation_testing = false\n"
             + "mutation_version = \"1.15.8\"     # PIT, resolved when mutation_testing is on\n"
+            + "coverage         = false      # JaCoCo, with launcher = \"console\"\n"
+            + "coverage_version = \"0.8.12\"\n"
             + "launcher         = \"delegate\"   # or \"console\" for jcheck-junit\n"
             + "random_order     = false\n"
             + "\n"

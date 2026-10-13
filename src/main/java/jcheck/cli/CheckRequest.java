@@ -26,6 +26,8 @@ public final class CheckRequest {
     public boolean pluginOffline;
     /** Run tests through the JUnit Platform Console Launcher with jcheck-junit attached. */
     public boolean testLauncher;
+    /** Run the test JVM under the JaCoCo agent and report uncovered lines. */
+    public boolean coverage;
     public List<Path> sources = new ArrayList<>();
     public List<Path> classpath = new ArrayList<>();
     public Integer release;

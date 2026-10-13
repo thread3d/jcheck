@@ -16,3 +16,4 @@ jcheck	TestFailure	J0901	5	test failed	test failure		junit reports a failing tes
 junit	junit.failure	J0901	5	test failed	test failure		junit reports a failing test|run `jcheck test` locally to reproduce|check whether the test asserts something real	docs/J0901.md
 junit	junit.error	J0901	5	test errored	test error		junit reports a test that threw|run `jcheck test` locally to reproduce	docs/J0901.md
 jcheck	MutantSurvived	J1101	5	mutant survived: {0}	surviving mutant	mutation-survived	strengthen the test so its result depends on this logic, or delete the code if no test needs it	docs/J1101.md
+jcheck	UncoveredLine	J1102	5	line is not covered by any test	uncovered line	coverage	write a test that executes this line, or remove the dead code	docs/J1102.md

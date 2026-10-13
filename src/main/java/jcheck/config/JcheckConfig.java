@@ -71,6 +71,9 @@ public final class JcheckConfig {
     public String mutationPluginVersion = "1.2.1";
     /** PIT worker threads; 0 means half the available processors. */
     public int mutationThreads = 0;
+    /** Run tests under the JaCoCo agent and report uncovered lines (console launcher only). */
+    public boolean coverage = false;
+    public String coverageVersion = "0.8.12";
     /** {@code delegate} (ask the build tool) or {@code console} (run the launcher with jcheck-junit). */
     public String testLauncher = "delegate";
     /** Randomize test method order and print the seed for reproducibility. */
@@ -168,6 +171,8 @@ public final class JcheckConfig {
         c.mutationVersion = Toml.str(tests, "mutation_version", c.mutationVersion);
         c.mutationPluginVersion = Toml.str(tests, "mutation_plugin_version", c.mutationPluginVersion);
         c.mutationThreads = Toml.integer(tests, "mutation_threads", c.mutationThreads);
+        c.coverage = Toml.bool(tests, "coverage", c.coverage);
+        c.coverageVersion = Toml.str(tests, "coverage_version", c.coverageVersion);
         c.testLauncher = Toml.str(tests, "launcher", c.testLauncher);
         c.randomTestOrder = Toml.bool(tests, "random_order", c.randomTestOrder);
         c.consoleLauncher = Toml.str(tests, "console_launcher", null);

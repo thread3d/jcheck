@@ -37,14 +37,17 @@ public final class TestCommand {
 
         boolean launcher = req.testLauncher || "console".equalsIgnoreCase(config.testLauncher);
         List<String> notes = new ArrayList<>();
+        List<Diagnostic> coverageDiagnostics = new ArrayList<>();
         int buildExit;
         if (launcher) {
-            JUnitHarness.Result harness = JUnitHarness.run(root, config, notes);
+            JUnitHarness.Result harness = JUnitHarness.run(root, config, notes,
+                req.coverage || config.coverage);
             if (!harness.available) {
                 return new CheckCommand.Outcome(CheckCommand.EXIT_TOOL_FAILURE, "",
                     "jcheck: " + String.join("\njcheck: ", harness.notes) + "\n");
             }
             buildExit = harness.exitCode;
+            coverageDiagnostics.addAll(harness.diagnostics);
         } else {
             String tool = BuildModel.detectBuildTool(root);
             Path executable = BuildModel.findBuildExecutable(root, tool);
@@ -70,7 +73,8 @@ public final class TestCommand {
         }
 
         Path reportDir = resolveReportDir(root, config, notes);
-        List<Diagnostic> diagnostics = JUnitXmlParser.parseDirectory(reportDir, root);
+        List<Diagnostic> diagnostics = new ArrayList<>(JUnitXmlParser.parseDirectory(reportDir, root));
+        diagnostics.addAll(coverageDiagnostics);
         if (diagnostics.isEmpty() && buildExit != 0) {
             notes.add("the build tool reported failure but no JUnit XML was found at " + reportDir);
         }
