@@ -209,7 +209,8 @@ public final class OpenRewriteRunner {
             notes.add("the OpenRewrite runner source is missing from this build");
             return null;
         }
-        String hash = hash(source + "|" + version + "|" + parserArtifact());
+        String hash = hash(source + "|" + version + "|" + parserArtifact()
+            + "|jdk=" + Runtime.version().feature());
         Path classes = MavenResolver.defaultCacheDir().resolve("rewrite").resolve("classes-" + hash);
         Path marker = classes.resolve(RUNNER_CLASS.replace('.', '/') + ".class");
         if (Files.isRegularFile(marker)) {

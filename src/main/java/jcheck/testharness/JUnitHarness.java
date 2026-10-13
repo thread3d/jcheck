@@ -235,7 +235,8 @@ public final class JUnitHarness {
             notes.add("the jcheck JUnit extension source is missing from this build");
             return null;
         }
-        Path classes = MavenResolver.defaultCacheDir().resolve("junit").resolve("classes-" + hash(source));
+        Path classes = MavenResolver.defaultCacheDir().resolve("junit")
+            .resolve("classes-" + hash(source + "|jdk=" + Runtime.version().feature()));
         Path marker = classes.resolve(EXTENSION_SERVICE);
         if (Files.isRegularFile(marker) && Files.isRegularFile(
                 classes.resolve(EXTENSION_CLASS.replace('.', '/') + ".class"))) {
