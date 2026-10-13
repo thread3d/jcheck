@@ -25,6 +25,7 @@ import jcheck.catalog.Catalog;
 import jcheck.catalog.CatalogEntry;
 import jcheck.cli.CheckCommand;
 import jcheck.cli.CheckRequest;
+import jcheck.cli.FixCommand;
 import jcheck.config.JcheckConfig;
 import jcheck.config.Toml;
 import jcheck.daemon.Daemon;
@@ -366,6 +367,27 @@ final class UnitTests {
         contains("plugins:spotbugs-report", sbOut.stdout, "source: spotbugs");
         contains("plugins:tier5", sbOut.stdout, "analysis reached T5");
         deleteRecursively(sb);
+
+        Path fx = Files.createTempDirectory("jcheck-fix-it-");
+        Path fxSrc = fx.resolve("src/main/java/demo");
+        Files.createDirectories(fxSrc);
+        Files.writeString(fxSrc.resolve("Fx.java"),
+            "package demo;\n"
+            + "public final class Fx {\n"
+            + "    boolean same(String a, String b) {\n"
+            + "        return a == b;\n"
+            + "    }\n"
+            + "}\n", StandardCharsets.UTF_8);
+        Files.writeString(fx.resolve("jcheck.toml"), "[errorprone]\nenabled = true\n",
+            StandardCharsets.UTF_8);
+        CheckRequest fxReq = new CheckRequest();
+        fxReq.root = fx.toString();
+        fxReq.errorProne = true;
+        CheckCommand.Outcome fxOut = FixCommand.run(fxReq, false, true);
+        String patched = Files.readString(fxSrc.resolve("Fx.java"), StandardCharsets.UTF_8);
+        check("plugins:fix-error-prone-patch", patched.contains("Objects.equals"), patched);
+        eq("plugins:fix-clean-after-patch", 0, fxOut.exitCode);
+        deleteRecursively(fx);
 
         junitHarnessIntegrationTest();
     }

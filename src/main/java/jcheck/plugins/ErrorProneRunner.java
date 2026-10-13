@@ -112,6 +112,46 @@ public final class ErrorProneRunner {
         return new Result(diagnostics, notes, true);
     }
 
+    /**
+     * Runs Error Prone in patch mode with {@code -XepPatchLocation:IN_PLACE}, editing the sources
+     * directly. The caller snapshots the files first and restores them when the re-check gets
+     * worse, exactly as it does for model suggestions.
+     */
+    public static Result patch(List<Path> sources, List<Path> classpath, List<Path> pluginJars,
+                               List<String> checks) {
+        List<String> notes = new ArrayList<>();
+        if (pluginJars.isEmpty() || checks.isEmpty()) {
+            notes.add("no Error Prone patches to apply");
+            return new Result(List.of(), notes, false);
+        }
+        Path scratch;
+        try {
+            scratch = Files.createTempDirectory("jcheck-patch-");
+        } catch (IOException e) {
+            notes.add("cannot create a scratch directory for Error Prone patch mode: " + e.getMessage());
+            return new Result(List.of(), notes, false);
+        }
+        try {
+            List<String> options = new ArrayList<>();
+            options.add("-encoding");
+            options.add("UTF-8");
+            options.add("-XDcompilePolicy=simple");
+            options.add("-d");
+            options.add(scratch.toString());
+            options.add("-Xplugin:ErrorProne -XepPatchChecks:" + String.join(",", checks)
+                + " -XepPatchLocation:IN_PLACE");
+            ForkedJavac.Result run = ForkedJavac.run(options, classpath, pluginJars, sources);
+            if (!run.ran) {
+                notes.add("Error Prone patch mode " + run.failure);
+                return new Result(List.of(), notes, false);
+            }
+            notes.add("applied Error Prone patches for " + String.join(", ", checks));
+            return new Result(List.of(), notes, true);
+        } finally {
+            ForkedJavac.deleteRecursively(scratch);
+        }
+    }
+
     private static List<String> javacOptions(CheckOptions opts, List<String> packages, boolean nullaway) {
         List<String> options = new ArrayList<>();
         options.add("-encoding");

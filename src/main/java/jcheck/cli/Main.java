@@ -155,7 +155,7 @@ public final class Main {
     static CheckCommand.Outcome runFix(String[] rest) {
         Args a = Args.parse(rest, VALUE_FLAGS);
         CheckRequest req = buildRequest(a);
-        return FixCommand.run(req, a.has("maybe-incorrect"));
+        return FixCommand.run(req, a.has("maybe-incorrect"), a.has("error-prone"));
     }
 
     // ---- explain ----------------------------------------------------------

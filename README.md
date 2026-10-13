@@ -27,7 +27,7 @@ Requires a JDK and nothing else — no Gradle, no Maven, no network.
 | `jcheck check` | Fast path: in-process javac plus the jcheck check pack, no artifacts. |
 | `jcheck build` | Runs a clean check first, then delegates to the build tool. |
 | `jcheck test` | Delegates to the build tool, then renders JUnit XML reports as diagnostics. `--launcher` runs the tests through the JUnit Platform Console Launcher with `jcheck-junit` attached. |
-| `jcheck fix` | Applies machine-applicable suggestions, re-checks, reverts if errors rose. |
+| `jcheck fix` | Applies machine-applicable suggestions, re-checks, reverts if errors rose. `--error-prone` also runs Error Prone's patch mode. |
 | `jcheck fmt` | google-java-format, or the project's Spotless task. |
 | `jcheck explain <code>` | Long-form explanation: why it matters, failing and fixed example. |
 | `jcheck init` | Writes `jcheck.toml`; `--agent` adds the agent instructions snippet. |
@@ -182,7 +182,7 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
 - **Tests** — 1207 assertions: unit tests plus 22 rustc-style UI golden cases under
   `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output. Set
   `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end analyzer cases (Error Prone, NullAway, the
-  Checker Framework, SpotBugs and `jcheck-junit`), which need downloaded jars; that run has 1219
+  Checker Framework, SpotBugs and `jcheck-junit`), which need downloaded jars; that run has 1221
   assertions.
 - **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
   (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
@@ -201,8 +201,10 @@ overstate itself:
   does not pay twice. When the tool is absent or the resolution fails, the heuristic classpath is
   kept and the limitation is stated on every run where it applies.
 - **No incremental dependents graph, PIT, JaCoCo, jcstress/Lincheck, Infer, or LSP bridge.**
-- **`jcheck fix` is not a patch engine** — it applies `SuggestedFix`-style edits from the
-  diagnostic model, not Error Prone patch mode or OpenRewrite recipes.
+- **`jcheck fix` does not run OpenRewrite recipes.** It applies the diagnostic model's
+  machine-applicable suggestions and, with `--error-prone`, Error Prone's own patch mode
+  (`-XepPatchChecks` / `-XepPatchLocation:IN_PLACE`); the sources are snapshotted first and every
+  edit is reverted when the re-check gets worse.
 
 ## Testing the tool
 
