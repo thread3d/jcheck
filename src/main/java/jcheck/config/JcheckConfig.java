@@ -21,6 +21,16 @@ public final class JcheckConfig {
     public Integer release;
     /** Whether to ask the build tool for its dependency classpath. */
     public boolean resolveClasspath = true;
+    /** Whether a Gradle build is read through the Tooling API before falling back to the binary. */
+    public boolean useToolingApi = true;
+    /** Path to a Gradle installation for the Tooling API (its {@code lib/} is required). */
+    public String gradleHome = "";
+    /** Whether a Maven build is read through the Maven embedder before falling back to the binary. */
+    public boolean useEmbedder = true;
+    /** Path to a Maven installation for the embedder (its {@code lib/} is required). */
+    public String mavenHome = "";
+    /** The maven-embedder version resolved for the in-process build. */
+    public String mavenVersion = "3.9.9";
     /** Warm-daemon incremental recompilation by API signature. */
     public boolean incremental = true;
     public List<String> modules = List.of();
@@ -135,6 +145,11 @@ public final class JcheckConfig {
         c.jdk = Toml.integer(project, "jdk", null);
         c.release = Toml.integer(project, "release", null);
         c.resolveClasspath = Toml.bool(project, "resolve_classpath", c.resolveClasspath);
+        c.useToolingApi = Toml.bool(project, "use_tooling_api", c.useToolingApi);
+        c.gradleHome = Toml.str(project, "gradle_home", c.gradleHome);
+        c.useEmbedder = Toml.bool(project, "use_embedder", c.useEmbedder);
+        c.mavenHome = Toml.str(project, "maven_home", c.mavenHome);
+        c.mavenVersion = Toml.str(project, "maven_version", c.mavenVersion);
         c.incremental = Toml.bool(project, "incremental", c.incremental);
         c.modules = Toml.strList(project, "modules", c.modules);
         c.sourceRoots = Toml.strList(project, "sources", c.sourceRoots);

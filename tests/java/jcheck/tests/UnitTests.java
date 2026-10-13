@@ -23,8 +23,10 @@ import javax.tools.StandardLocation;
 import javax.tools.ToolProvider;
 import jcheck.build.BuildModel;
 import jcheck.build.DependencyResolver;
+import jcheck.build.GradleToolingResolver;
 import jcheck.build.IncrementalCache;
 import jcheck.build.IncrementalPlan;
+import jcheck.build.MavenEmbedderResolver;
 import jcheck.catalog.Catalog;
 import jcheck.catalog.CatalogEntry;
 import jcheck.cli.CheckCommand;
@@ -100,6 +102,8 @@ final class UnitTests {
         incrementalPlanTests();
         multiModuleTests();
         sourceScanTests();
+        buildToolModelTests();
+        buildToolIntegrationTests();
         gradleSourceSetTests();
         mavenResolverTests();
         suggestionRoundTripTests();
@@ -447,6 +451,98 @@ final class UnitTests {
         }
     }
 
+    // ---- build-tool models --------------------------------------------------
+
+    /** Offline: the Tooling API record parser and the installation discovery. */
+    private static void buildToolModelTests() throws Exception {
+        GradleToolingResolver.Model parsed = GradleToolingResolver.parse(
+            "PROJECT\t:\t/proj\nSOURCE\t/proj/src/main/java\nCLASSPATH\t/a.jar\n"
+            + "PROJECT\t:sub\t/proj/sub\nSOURCE\t/proj/sub/src/java\nCLASSPATH\t/b.jar\n");
+        check("tooling:parsed-resolved", parsed.resolved, null);
+        eq("tooling:parsed-modules", 2, parsed.modules.size());
+        eq("tooling:parsed-sources", 2, parsed.sourceRoots.size());
+        eq("tooling:parsed-classpath", 2, parsed.classpath.size());
+        check("tooling:empty-not-resolved", !GradleToolingResolver.parse("").resolved, null);
+
+        Path tmp = Files.createTempDirectory("jcheck-installation-");
+        try {
+            Files.createDirectories(tmp.resolve("lib"));
+            Path found = MavenEmbedderResolver.findInstallation(tmp.toString());
+            check("embedder:installation-found", found != null, null);
+            if (found != null) {
+                eq("embedder:installation-path", tmp.toAbsolutePath().normalize(),
+                    found.toAbsolutePath().normalize());
+            }
+        } finally {
+            deleteRecursively(tmp);
+        }
+    }
+
+    /**
+     * End-to-end for the build-tool models, gated on the environment that actually has the matching
+     * installation: the Gradle Tooling API must report a custom source set and the project list, and
+     * the Maven embedder must produce a real dependency classpath without an mvn process.
+     */
+    private static void buildToolIntegrationTests() throws Exception {
+        String gradleInstallation = System.getenv("JCHECK_GRADLE_INSTALLATION");
+        if (gradleInstallation != null && !gradleInstallation.isBlank()
+            && Files.isDirectory(Path.of(gradleInstallation, "lib"))) {
+            Path tmp = Files.createTempDirectory("jcheck-tooling-it-");
+            try {
+                Path src = tmp.resolve("src/java/demo");
+                Files.createDirectories(src);
+                Files.writeString(src.resolve("G.java"), "package demo;\npublic final class G {}\n");
+                Files.writeString(tmp.resolve("settings.gradle"), "rootProject.name = 'tooling-it'\n");
+                Files.writeString(tmp.resolve("build.gradle"),
+                    "plugins { id 'java' }\nsourceSets.main.java.srcDirs = ['src/java']\n");
+                JcheckConfig config = JcheckConfig.load(tmp);
+                BuildModel model = BuildModel.resolve(tmp, config, null, null, null, null);
+                if (model.classpathResolved) {
+                    check("tooling:api-used", model.info.stream()
+                        .anyMatch(i -> i.contains("Gradle Tooling API")), model.info.toString());
+                    check("tooling:custom-source-root", model.sources.stream()
+                        .anyMatch(p -> p.getFileName().toString().equals("G.java")),
+                        model.sources.toString());
+                    check("tooling:module-detected", !model.modules.isEmpty(),
+                        model.modules.toString());
+                }
+            } finally {
+                deleteRecursively(tmp);
+            }
+        }
+
+        String mavenInstallation = System.getenv("JCHECK_MAVEN_INSTALLATION");
+        String mavenRepo = System.getenv("JCHECK_MAVEN_REPO");
+        if (mavenRepo != null && !mavenRepo.isBlank()
+            && mavenInstallation != null && !mavenInstallation.isBlank()
+            && Files.isDirectory(Path.of(mavenInstallation, "lib"))) {
+            Path tmp = Files.createTempDirectory("jcheck-embedder-it-");
+            try {
+                Files.createDirectories(tmp.resolve("src/main/java/demo"));
+                Files.writeString(tmp.resolve("src/main/java/demo/M.java"),
+                    "package demo;\npublic final class M {}\n");
+                Files.writeString(tmp.resolve("pom.xml"),
+                    "<project xmlns=\"http://maven.apache.org/POM/4.0.0\">"
+                    + "<modelVersion>4.0.0</modelVersion>"
+                    + "<groupId>demo</groupId><artifactId>embedder-it</artifactId>"
+                    + "<version>1.0</version><dependencies><dependency>"
+                    + "<groupId>com.google.guava</groupId><artifactId>guava</artifactId>"
+                    + "<version>32.1.1-jre</version></dependency></dependencies></project>\n");
+                JcheckConfig config = JcheckConfig.load(tmp);
+                BuildModel model = BuildModel.resolve(tmp, config, null, null, null, null);
+                if (model.classpathResolved) {
+                    check("embedder:used", model.info.stream()
+                        .anyMatch(i -> i.contains("Maven embedder")), model.info.toString());
+                    check("embedder:classpath-has-guava", model.classpath.stream().anyMatch(
+                        p -> p.getFileName().toString().startsWith("guava-")),
+                        model.classpath.toString());
+                }
+            } finally {
+                deleteRecursively(tmp);
+            }
+        }
+    }
+
     // ---- real-project corpus ------------------------------------------------
 
     /**
@@ -473,7 +569,30 @@ final class UnitTests {
             List.of("org.ow2.asm:asm:9.6:sources"),
             List.of("org.slf4j:slf4j-api:2.0.13:sources"),
             List.of("io.reactivex.rxjava3:rxjava:3.1.8:sources",
-                    "org.reactivestreams:reactive-streams:1.0.4:sources"));
+                    "org.reactivestreams:reactive-streams:1.0.4:sources"),
+            List.of("commons-io:commons-io:2.16.1:sources",
+                    "commons-codec:commons-codec:1.16.1:sources"),
+            List.of("org.apache.commons:commons-text:1.11.0:sources",
+                    "org.apache.commons:commons-lang3:3.14.0:sources"),
+            List.of("org.apache.commons:commons-csv:1.11.0:sources",
+                    "commons-io:commons-io:2.16.1:sources",
+                    "commons-codec:commons-codec:1.16.1:sources"),
+            List.of("com.google.guava:guava:33.0.0-jre:sources",
+                    "com.google.guava:failureaccess:1.0.2",
+                    "com.google.code.findbugs:jsr305:3.0.2",
+                    "org.checkerframework:checker-qual:3.42.0",
+                    "com.google.errorprone:error_prone_annotations:2.24.1",
+                    "com.google.j2objc:j2objc-annotations:2.8"),
+            List.of("com.fasterxml.jackson.core:jackson-databind:2.17.0:sources",
+                    "com.fasterxml.jackson.core:jackson-core:2.17.0:sources",
+                    "com.fasterxml.jackson.core:jackson-annotations:2.17.0:sources",
+                    "ch.randelshofer:fastdoubleparser:0.8.0"),
+            List.of("org.jetbrains:annotations:24.1.0:sources"),
+            List.of("org.antlr:antlr4-runtime:4.13.1:sources"),
+            List.of("org.apache.commons:commons-exec:1.4.0:sources"),
+            List.of("org.apache.commons:commons-pool2:2.12.0:sources",
+                    "cglib:cglib:3.3.0", "org.ow2.asm:asm:9.6"),
+            List.of("com.google.code.findbugs:jsr305:3.0.2:sources"));
         MavenResolver resolver = MavenResolver.standard(false);
         boolean bless = "1".equals(System.getenv("JCHECK_CORPUS_BLESS"));
         Map<String, long[]> baseline = readCorpusBaseline();
@@ -541,7 +660,8 @@ final class UnitTests {
                 }
                 long lines = countLines(dir);
                 double perKloc = lines == 0 ? 0 : count * 1000.0 / lines;
-                check("corpus:has-findings:" + label, count > 0,
+                // A tiny constants/annotations library can legitimately be clean; a real one cannot.
+                check("corpus:has-findings:" + label, count > 0 || lines < 5_000,
                     "the pack found nothing in " + label + ", which is suspicious");
                 check("corpus:noise-budget:" + label, perKloc < 250,
                     "diagnostics/kLOC=" + Math.round(perKloc) + " over " + lines + " lines");
@@ -582,11 +702,16 @@ final class UnitTests {
         }
     }
 
+    /** Counts newlines by bytes: a real library can contain a file that is not valid UTF-8. */
     private static long countLines(Path dir) throws IOException {
         long lines = 0;
         try (var walk = Files.walk(dir)) {
             for (Path p : walk.filter(x -> x.toString().endsWith(".java")).toList()) {
-                lines += Files.readAllLines(p).size();
+                for (byte b : Files.readAllBytes(p)) {
+                    if (b == '\n') {
+                        lines++;
+                    }
+                }
             }
         }
         return lines;
@@ -629,20 +754,40 @@ final class UnitTests {
         Files.writeString(file, sb.toString(), StandardCharsets.UTF_8);
     }
 
-    /** Extracts the {@code .java} entries of a jar into a directory. */
+    /**
+     * Extracts a jar's {@code .java} entries under {@code src/main/java}, the layout a real project
+     * uses. Flattening them to the root would make a package directory named {@code build} look like
+     * a build output. Module descriptors are dropped: several source jars in one group would collide
+     * on {@code module-info.java}, and a module descriptor adds nothing to the T3 pack. A file that
+     * is not valid UTF-8 is kept as Latin-1 rather than failing the extraction.
+     */
     private static void extractSources(Path jar, Path dir) throws IOException {
+        Path root = dir.resolve("src/main/java");
+        java.nio.charset.CharsetDecoder strict = StandardCharsets.UTF_8.newDecoder()
+            .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+            .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT);
         try (java.util.jar.JarFile file = new java.util.jar.JarFile(jar.toFile())) {
             java.util.Enumeration<java.util.jar.JarEntry> entries = file.entries();
             while (entries.hasMoreElements()) {
                 java.util.jar.JarEntry entry = entries.nextElement();
-                if (!entry.getName().endsWith(".java")) {
+                String name = entry.getName();
+                if (!name.endsWith(".java") || name.endsWith("module-info.java")) {
                     continue;
                 }
-                Path target = dir.resolve(entry.getName());
+                Path target = root.resolve(name);
                 Files.createDirectories(target.getParent());
+                byte[] bytes;
                 try (java.io.InputStream in = file.getInputStream(entry)) {
-                    Files.copy(in, target);
+                    bytes = in.readAllBytes();
                 }
+                String text;
+                try {
+                    strict.decode(java.nio.ByteBuffer.wrap(bytes));
+                    text = new String(bytes, StandardCharsets.UTF_8);
+                } catch (java.nio.charset.CharacterCodingException e) {
+                    text = new String(bytes, StandardCharsets.ISO_8859_1);
+                }
+                Files.writeString(target, text, StandardCharsets.UTF_8);
             }
         }
     }

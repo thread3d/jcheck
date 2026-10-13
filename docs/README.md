@@ -30,6 +30,12 @@ the headlines, labels and help lines live in the TSV resources under
 | J0475 | DanglingDocComment | T2 flow | warn |
 | J0476 | MissingDeprecatedAnnotation | T2 flow | warn |
 | J0477 | RedundantTrustMeAnnotation | T2 flow | warn |
+| J0478 | SunProprietary | T2 flow | warn |
+| J0479 | UncheckedGenericArrayCreation | T2 flow | warn |
+| J0480 | TryResourceThrowsInterrupted | T2 flow | warn |
+| J0481 | LeaksNotAccessible | T2 flow | warn |
+| J0482 | LeaksNotAccessibleNotRequiredTransitive | T2 flow | warn |
+| J0483 | OverrideUncheckedReturn | T2 flow | warn |
 | J0301 | UncheckedArithmetic | T3 jcheck-checks | deny in `@Checked` |
 | J0302 | LossyCast | T3 jcheck-checks | deny |
 | J0601 | SharedMutableWithoutGuard | T3 jcheck-checks | deny in `@ThreadSafe` |

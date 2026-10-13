@@ -131,7 +131,7 @@ alone, because tools word the same problem differently. Diagnostics that are the
 only when code, file, line, *and detail lines* match — javac reports one missing type twice, and
 merging on the message alone would have collapsed two genuinely different unresolved names.
 
-**Catalog entries are data.** 208 rows in TSV resources map `(source, source_key)` to a stable
+**Catalog entries are data.** 214 rows in TSV resources map `(source, source_key)` to a stable
 code, tier, curated headline and help lines. Unmapped keys are never dropped: they get a stable
 `J9xxx` code derived from an FNV-1a hash of the key, and are flagged as needing curation.
 
@@ -210,9 +210,16 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   rewrite is auditable in the same model as any other finding. Recipes come from any library on the
   runner classpath: `rewrite-static-analysis`, `rewrite-java` itself, and anything added through
   `[fix] rewrite_libraries`. jcheck itself has no OpenRewrite dependency.
-- **Multi-module builds** — a Gradle build contributes its own source sets (the init script prints
-  each project's `java` and, when the Kotlin plugin is present, `kotlin` source directories), and a
-  Maven `pom.xml` contributes its declared `<modules>` and each module's
+- **Build-tool models** — with a Gradle installation present, `jcheck` reads the project through the
+  **Gradle Tooling API**: every subproject, its source sets and its resolved classpath, compiled from
+  a small runner and cached by build-file fingerprint. With a Maven installation, the classpath is
+  resolved through the **Maven embedder** in process, so no `mvn` process is spawned. Both need the
+  installation's `lib/` (set `[project] gradle_home` / `maven_home` or the matching environment
+  variable) and fall back to running the project's wrapper or binary, then to the heuristic
+  classpath, saying which path was used. A Maven build's source roots and modules still come from its
+  POMs.
+- **Multi-module builds** — the Tooling API supplies a Gradle build's modules and source sets
+  directly; a Maven `pom.xml` supplies its declared `<modules>` and each module's
   `<sourceDirectory>`/`<testSourceDirectory>`, so a module with `src/java` instead of
   `src/main/java` is found by the declaration. When neither is available, the model walks for module
   source roots (`module-a/src/main/java`, `group/module-b/src/test/java`, …) up to five levels deep,
@@ -227,13 +234,13 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   per-session process and source-change subscriptions. See [MCP interface](#mcp-interface).
 - **`init`, `fix`, `explain`, `fmt`, `build`, `test`** — including a JUnit XML parser that lifts
   project stack frames above framework frames.
-- **Tests** — 1351–1353 assertions: unit tests plus 22 rustc-style UI golden cases under
+- **Tests** — 1389 assertions: unit tests plus 22 rustc-style UI golden cases under
   `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output. Set
   `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end analyzer cases (Error Prone, NullAway, the
-  Checker Framework, SpotBugs, jcstress, OpenRewrite, the eleven-library corpus and `jcheck-junit`),
-  which need downloaded jars; that run has 1427 assertions on JDK 20, 1424 on 21 and 1416 on 25,
-  where an analyzer or corpus library that does not support the JDK is skipped rather than counted
-  green.
+  Checker Framework, SpotBugs, jcstress, OpenRewrite, the twenty-one-library corpus and
+  `jcheck-junit`), which need downloaded jars; that run has 1503 assertions on JDK 20, 1500 on 21 and
+  1492 on 25, where an analyzer or corpus library that does not support the JDK is skipped rather
+  than counted green.
 - **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
   (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
   `Todo()`/`Unreachable()`/`Unimplemented()` markers behind J0902, and a sealed `Result` type.
@@ -244,15 +251,11 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
 Stated plainly, because a tool whose whole premise is "a clean check means something" must not
 overstate itself:
 
-- **The Gradle Tooling API and Maven embedder are not used.** jcheck runs the project's own build
-  tool instead — the wrapper first, then `PATH` — and asks it for the compile/runtime and
-  annotation-processor classpath (for Maven, `dependency:build-classpath`). The answer is cached
-  under the jcheck cache directory and keyed by a fingerprint of the build files, so a warm daemon
-  does not pay twice. When the tool is absent or the resolution fails, the heuristic classpath is
-  kept and the limitation is stated on every run where it applies. Source roots come from the build
-  tool where it can report them (Gradle source sets, Maven `<modules>` and `<sourceDirectory>`); the
-  Tooling API itself is not embedded, and a build tool that is absent leaves only the directory
-  walk.
+- **Build-tool coverage is best-effort, not universal.** The Gradle Tooling API and the Maven
+  embedder both need that tool's installation on the machine; without it jcheck runs the project's
+  wrapper or binary, and if that is absent too it keeps the heuristic classpath and says so. Gradle
+  source sets for non-Gradle layouts, and build tools other than Gradle and Maven (Bazel, sbt, Ant),
+  have no dedicated path.
 - **OpenRewrite coverage is opt-in and Java-only.** `jcheck rewrite` runs the recipes named in
   `[fix] rewrite_recipes`; the recipe libraries are whatever `rewrite-static-analysis`,
   `rewrite-java` and `[fix] rewrite_libraries` put on the runner classpath, and a recipe that is not
@@ -268,18 +271,22 @@ end-to-end analyzer cases — Error Prone, NullAway, the Checker Framework, Spot
 when one is present and skips otherwise.
 
 Not covered here, and stated so a green run is not mistaken for more than it is: a broad
-false-positive corpus. The suite runs the T3 pack over eleven real libraries' `-sources` jars —
-Commons Lang, Gson, Commons Collections, Commons Codec, Commons CLI, Commons Math, SnakeYAML, jsoup,
-ASM, SLF4J and RxJava, 684k lines in total — and asserts that each library which compiles there
-reaches T3, finds something, stays under 250 diagnostics per kLOC, keeps any single code under 60
-per kLOC, and leaves no upstream key uncatalogued, against the checked-in measurements in
+false-positive corpus. The suite runs the T3 pack over twenty-one real libraries' `-sources` jars —
+Commons Lang, Gson, Commons Collections 4, Commons Codec, Commons CLI, Commons Math, SnakeYAML,
+jsoup, ASM, SLF4J, RxJava, Commons IO, Commons Text, Commons CSV, Guava, Jackson Databind, JetBrains
+Annotations, ANTLR4 runtime, Commons Exec, Commons Pool and JSR-305, **1.39M lines** in total — and
+asserts that each library which compiles there reaches T3, finds something (a tiny annotations jar
+may legitimately be clean), stays under 250 diagnostics per kLOC, keeps any single code under 60 per
+kLOC, and leaves no upstream key uncatalogued, against the checked-in measurements in
 `tests/corpus/baseline.txt` (re-measure with `JCHECK_CORPUS_BLESS=1`); it currently reports about 17
-per kLOC. A library whose sources need a companion jar (RxJava needs reactive-streams, jsoup needs
-jspecify) gets it in the project's `lib/`, exactly as a real project would declare it. Commons
-Collections 4.4 does not compile on JDK 21 or 25, so it is skipped on those rather than counted;
-eleven libraries are still not every library. The corpus has already earned its keep by catching two
-real bugs: a package directory named `build` was silently dropped from the source list (commons-io
-has `org.apache.commons.io.build`), and a diagnostic pointing into an already-closed jar filesystem
+per kLOC. Sources are extracted under `src/main/java` and a file that is not valid UTF-8 is kept as
+Latin-1, so the corpus looks like the projects themselves; a library that needs a companion jar
+(RxJava needs reactive-streams, Guava its annotation jars, Jackson fastdoubleparser, Commons Pool
+cglib) gets it in the project's `lib/`, the way a real build would. Commons Collections 4.4 does not
+compile on JDK 21 or 25, so it is skipped on those rather than counted; twenty-one libraries are
+still not every library. The corpus has already earned its keep by catching two real bugs: a package
+directory named `build` was silently dropped from the source list (commons-io has
+`org.apache.commons.io.build`), and a diagnostic pointing into an already-closed jar filesystem
 failed the entire run instead of degrading to a line/column span. The suite runs on JDK 20, 21 and
 25; on 25 the analyzers that do not support it are skipped rather than counted green. The daemon
 tests cover classpath change, stale cache, concurrent requests, malformed frames, shutdown and
@@ -305,6 +312,14 @@ JSpecify pulled in transitively), the Checker Framework **3.42.0**, SpotBugs **4
 **2.41.1**, which pulls `rewrite-java` 8.90.2), verified on JDK 20 and 21. All of them are
 configurable in `jcheck.toml`. Infer is a native binary and is located rather
 than resolved; the workspace copy used here is v1.2.0.
+
+Environment variables, all optional: `JCHECK_CACHE_DIR` moves the cache,
+`JCHECK_MAVEN_REPO` and `JCHECK_GRADLE_HOME` point at a Maven repository and a Gradle user home,
+`JCHECK_MAVEN_INSTALLATION` and `JCHECK_GRADLE_INSTALLATION` point at the Maven and Gradle
+installations the embedder and the Tooling API load their `lib/` from, `JCHECK_INFER` is the Infer
+binary, `JCHECK_TEST_PLUGINS=1` runs the opt-in analyzer and corpus cases,
+`JCHECK_CORPUS_BLESS=1` re-records `tests/corpus/baseline.txt`, and `JCHECK_DEBUG=1` prints a stack
+trace for an internal error.
 
 ## Layout
 

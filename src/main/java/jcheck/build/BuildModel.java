@@ -127,19 +127,66 @@ public final class BuildModel {
         boolean classpathResolved = !classpathOverrides.isEmpty();
         if (("gradle".equals(tool) || "maven".equals(tool)) && classpathOverrides.isEmpty()
             && config.resolveClasspath) {
-            DependencyResolver.Result deps = DependencyResolver.resolve(absRoot, tool,
-                findBuildExecutable(absRoot, tool));
-            classpath.addAll(deps.classpath);
-            toolSourceRoots.addAll(deps.sourceRoots);
-            for (Path p : deps.processorPath) {
-                if (!processorPath.contains(p)) {
-                    processorPath.add(p);
+            boolean fromToolingApi = false;
+            if ("gradle".equals(tool) && config.useToolingApi) {
+                /*
+                 * The Tooling API is the project's own model: it reports every subproject, its
+                 * source sets and its resolved classpath, which is strictly more than the binary's
+                 * classpath string. When it is unavailable (no installation, unsupported JDK) the
+                 * note explains why and the binary path runs instead.
+                 */
+                GradleToolingResolver.Model model =
+                    GradleToolingResolver.resolve(absRoot, config.gradleHome);
+                notes.addAll(model.notes);
+                if (model.resolved) {
+                    classpath.addAll(model.classpath);
+                    toolSourceRoots.addAll(model.sourceRoots);
+                    for (Path module : model.modules) {
+                        if (!modules.contains(module)) {
+                            modules.add(module);
+                        }
+                    }
+                    classpathResolved = true;
+                    fromToolingApi = true;
+                    info.add("classpath and sources resolved from the Gradle Tooling API");
+                } else {
+                    info.add("Gradle Tooling API unavailable; falling back to the gradle binary");
                 }
             }
-            notes.addAll(deps.notes);
-            classpathResolved = deps.resolved;
-            if (deps.resolved) {
-                info.add("classpath resolved from " + tool);
+            boolean fromEmbedder = false;
+            if (!fromToolingApi && "maven".equals(tool) && config.useEmbedder) {
+                /*
+                 * The Maven embedder runs Maven in process, so no mvn process is spawned. Source
+                 * roots and modules still come from the POMs, which is exact for Maven's
+                 * declarative layout.
+                 */
+                MavenEmbedderResolver.Model model = MavenEmbedderResolver.resolve(
+                    absRoot, config.mavenHome, config.mavenVersion, config.pluginOffline);
+                notes.addAll(model.notes);
+                if (model.resolved) {
+                    classpath.addAll(model.classpath);
+                    classpathResolved = true;
+                    fromEmbedder = true;
+                    info.add("classpath resolved from the Maven embedder");
+                } else {
+                    info.add("Maven embedder unavailable; falling back to the mvn binary");
+                }
+            }
+            if (!fromToolingApi && !fromEmbedder) {
+                DependencyResolver.Result deps = DependencyResolver.resolve(absRoot, tool,
+                    findBuildExecutable(absRoot, tool));
+                classpath.addAll(deps.classpath);
+                toolSourceRoots.addAll(deps.sourceRoots);
+                for (Path p : deps.processorPath) {
+                    if (!processorPath.contains(p)) {
+                        processorPath.add(p);
+                    }
+                }
+                notes.addAll(deps.notes);
+                classpathResolved = deps.resolved;
+                if (deps.resolved) {
+                    info.add("classpath resolved from " + tool);
+                }
             }
         } else if (("gradle".equals(tool) || "maven".equals(tool)) && classpathOverrides.isEmpty()) {
             notes.add("build-tool classpath resolution is disabled in jcheck.toml; "
@@ -200,8 +247,10 @@ public final class BuildModel {
             }
             if (!allModuleRoots.isEmpty()) {
                 info.add("module source roots: " + relativeAll(absRoot, allModuleRoots));
-                notes.add(modules.size() + " module(s) detected under "
-                    + relativeAll(absRoot, modules));
+                if (!modules.isEmpty()) {
+                    notes.add(modules.size() + " module(s) detected under "
+                        + relativeAll(absRoot, modules));
+                }
             }
             if (candidates.isEmpty()) {
                 candidates.add(absRoot);
