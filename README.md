@@ -212,7 +212,9 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   `rewrite-kotlin`, and anything added through `[fix] rewrite_libraries`. Java and Kotlin sources are
   both rewritten (Kotlin is found under `src/main/kotlin` and friends and never handed to javac),
   and the Kotlin frontend is loaded reflectively so `[fix] rewrite_kotlin = false` still works.
-  jcheck itself has no OpenRewrite dependency.
+  jcheck itself has no OpenRewrite dependency. The parts of OpenRewrite's surface that are not wired
+  up — project `rewrite.yml` discovery, per-recipe options, non-JVM frontends — are named in
+  "Limitations and what is not implemented yet".
 - **Build-tool models** — with a Gradle installation present, `jcheck` reads the project through the
   **Gradle Tooling API**: every subproject, its source sets and its resolved classpath, compiled from
   a small runner and cached by build-file fingerprint. With a Maven installation, the classpath is
@@ -249,29 +251,34 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   `Todo()`/`Unreachable()`/`Unimplemented()` markers behind J0902, and a sealed `Result` type.
   `./build.sh` produces `out/jcheck-support.jar`.
 
-## What is not implemented yet
+## Limitations and what is not implemented yet
 
 Stated plainly, because a tool whose whole premise is "a clean check means something" must not
-overstate itself:
+overstate itself. A feature listed here may still be implemented — the entry says exactly what part
+of it is missing.
 
 - **Build-tool coverage is best-effort, not universal.** The Gradle Tooling API and the Maven
   embedder both need that tool's installation on the machine; without it jcheck runs the project's
   wrapper or binary, and if that is absent too it keeps the heuristic classpath and says so. Gradle
   source sets for non-Gradle layouts, and build tools other than Gradle and Maven (Bazel, sbt, Ant),
   have no dedicated path.
-- **OpenRewrite coverage is opt-in.** `jcheck rewrite` runs the recipes named in
-  `[fix] rewrite_recipes`; the recipe libraries are whatever `rewrite-static-analysis`,
-  `rewrite-java`, `rewrite-kotlin` and `[fix] rewrite_libraries` put on the runner classpath, and a
-  recipe that is not there fails loudly rather than being skipped. Java and Kotlin sources are
-  rewritten; other OpenRewrite frontends (Python, YAML, …) are not wired up.
+- **OpenRewrite is implemented, but only part of its surface is wired up.** `jcheck rewrite` exists,
+  is tested end to end, and applies the recipes named in `[fix] rewrite_recipes` from the recipe
+  libraries on the runner classpath (`rewrite-static-analysis`, `rewrite-java`, `rewrite-kotlin`,
+  plus anything in `[fix] rewrite_libraries`); a recipe that is not on that classpath fails loudly
+  rather than being skipped. What is *not* wired up: a project's own `rewrite.yml` declarative
+  recipes are not discovered (the runner scans the classpath, not the project tree), per-recipe
+  `@Option` values cannot be set, recipe-marketplace/Artifactory resolution is absent, and only Java
+  and Kotlin sources are parsed — other OpenRewrite frontends (Python, YAML, …) are not.
 
 ## Testing the tool
 
 `./tests/run.sh` builds jcheck and runs the unit tests, the 22 rustc-style UI golden cases and the
 MCP tests; the default suite needs only a JDK, no network. `JCHECK_TEST_PLUGINS=1` adds the
-end-to-end analyzer cases — Error Prone, NullAway, the Checker Framework, SpotBugs, jcstress and
-`jcheck-junit` — which download and cache their jars. The Infer case runs against a native binary
-when one is present and skips otherwise.
+end-to-end analyzer cases — Error Prone, NullAway, the Checker Framework, SpotBugs, jcstress,
+OpenRewrite (Java and Kotlin), the twenty-one-library corpus and `jcheck-junit` — which download and
+cache their jars. The Infer case runs against a native binary when one is present and skips
+otherwise.
 
 Not covered here, and stated so a green run is not mistaken for more than it is: a broad
 false-positive corpus. The suite runs the T3 pack over twenty-one real libraries' `-sources` jars —

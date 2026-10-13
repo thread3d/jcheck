@@ -250,7 +250,7 @@ One entry point replaces the separate formatter, patcher and linter invocations.
 | `jcheck check` | Fast path: in-process javac plus analyzers, no artifacts. |
 | `jcheck build` | Delegates to the build tool after a clean check. |
 | `jcheck test` | Runs tests with the jcheck-junit extension and structured rendering. |
-| `jcheck fix` | Applies all MachineApplicable suggestions. Sources: Error Prone patch mode (`-XepPatchChecks`, `-XepPatchLocation`), OpenRewrite recipes shipped in the catalog (add `@Override`, convert to try-with-resources, switch to `List.of`), and the custom check pack. Edits are applied to a copy and `check` is re-run; the result is kept only if the error count did not rise, otherwise it is reverted and reported. |
+| `jcheck fix` | Applies all MachineApplicable suggestions. Sources: Error Prone patch mode (`-XepPatchChecks`, `-XepPatchLocation`), OpenRewrite recipes shipped in the catalog (add `@Override`, convert to try-with-resources, finalize locals, remove unnecessary parentheses, Kotlin trailing semicolons; `jcheck rewrite` runs them on their own), and the custom check pack. Edits are applied to a copy and `check` is re-run; the result is kept only if the error count did not rise, otherwise it is reverted and reported. |
 | `jcheck fmt [--check]` | google-java-format or Spotless, whichever the project already uses. |
 | `jcheck explain <code>` | Long-form explanation with a failing and a fixed example. |
 | `jcheck init` | Detects build tool and JDK, writes `jcheck.toml`, adds `package-info.java` stubs with `@NullMarked` and `@CheckReturnValue`, adds `jcheck-support` as a dependency, and with `--agent` writes the agent instructions snippet. |
