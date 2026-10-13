@@ -212,8 +212,8 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   `rewrite-kotlin`, and anything added through `[fix] rewrite_libraries`. Java and Kotlin sources are
   both rewritten (Kotlin is found under `src/main/kotlin` and friends and never handed to javac),
   and the Kotlin frontend is loaded reflectively so `[fix] rewrite_kotlin = false` still works.
-  jcheck itself has no OpenRewrite dependency. What is bounded and what is absent is listed under
-  "Limitations" and "What is not implemented yet".
+  jcheck itself has no OpenRewrite dependency. See "Limitations", "What is not implemented yet" and
+  "Out of scope" for the boundaries.
 - **Build-tool models** — with a Gradle installation present, `jcheck` reads the project through the
   **Gradle Tooling API**: every subproject, its source sets and its resolved classpath, compiled from
   a small runner and cached by build-file fingerprint. With a Maven installation, the classpath is
@@ -269,16 +269,26 @@ Features that work, within stated bounds. Each entry says what holds and what do
 
 ## What is not implemented yet
 
-Plain absences, not bounds on something that works:
+One commitment from SPEC.md is outstanding. M4 lists "jcstress / Lincheck hooks": the jcstress hook
+exists (`jcheck jcstress`, J1201), the **Lincheck** one does not. Lincheck tests are not unchecked —
+they run as ordinary JUnit tests under `jcheck test --launcher` — but there is no `jcheck lincheck`
+command to resolve the library, run the stress tests and report their findings as diagnostics.
+Everything else the spec names is implemented.
 
-- **Build models for Bazel, sbt or Ant.** Gradle and Maven only.
-- **A project's own OpenRewrite `rewrite.yml` declarative recipes.** Only recipes on the runner
-  classpath are discovered.
-- **OpenRewrite recipe options and recipe catalogues.** Per-recipe `@Option` values cannot be set,
-  and there is no marketplace or Artifactory resolution by recipe name.
+## Out of scope
+
+Not commitments of this project: SPEC.md names Gradle and Maven only for the build model, and open
+decision 6 leaves Kotlin and Scala in mixed projects out of scope for v0.1. Listed so the boundary is
+explicit.
+
+- **Build models for Bazel, sbt or Ant.**
 - **OpenRewrite frontends other than Java and Kotlin** (Python, YAML, XML, …).
-- **Kotlin and Scala in the javac check pack.** T0–T3 are Java-only: Kotlin can be rewritten, not
+- **Kotlin and Scala in the javac check pack** — they can be rewritten through OpenRewrite, not
   checked.
+- **A project's own OpenRewrite `rewrite.yml` declarative recipes** — the spec asks for recipes
+  shipped in the catalog, not for discovering a project's own.
+- **OpenRewrite recipe options and recipe catalogues** — per-recipe `@Option` values and
+  marketplace/Artifactory resolution, both beyond the spec's catalog.
 
 ## Testing the tool
 
