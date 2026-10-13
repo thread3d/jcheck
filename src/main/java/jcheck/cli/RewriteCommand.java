@@ -52,7 +52,9 @@ public final class RewriteCommand {
                 "jcheck: cannot resolve the build model: " + e.getMessage() + "\n");
         }
 
-        OpenRewriteRunner.Result result = OpenRewriteRunner.run(root, config, model.sources,
+        List<Path> sources = new ArrayList<>(model.sources);
+        sources.addAll(jcheck.build.BuildModel.kotlinSources(root, config));
+        OpenRewriteRunner.Result result = OpenRewriteRunner.run(root, config, sources,
             model.classpath);
         if (!result.ran) {
             return new CheckCommand.Outcome(CheckCommand.EXIT_TOOL_FAILURE, "",

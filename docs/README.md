@@ -60,6 +60,7 @@ the headlines, labels and help lines live in the TSV resources under
 | J1504 | UnnecessaryParentheses | T5 rewrite | note |
 | J1505 | EmptyNewlineAtEndOfFile | T5 rewrite | note |
 | J1506 | CodeCleanup | T5 rewrite | note |
+| J1507 | KotlinRemoveTrailingSemicolon | T5 rewrite | note |
 
 ## Reading a page
 

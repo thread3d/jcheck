@@ -76,7 +76,11 @@ public final class FixCommand {
 
         List<OpenRewriteRunner.Change> rewriteChanged = new ArrayList<>();
         if (wantRewrite && model != null) {
-            OpenRewriteRunner.Result rewritten = OpenRewriteRunner.run(root, config, sources,
+            List<Path> rewriteSources = new ArrayList<>(sources);
+            rewriteSources.addAll(BuildModel.kotlinSources(root, config));
+            // Kotlin files are rewritten in place too, so they must be snapshotted as well.
+            snapshot.putAll(snapshot(rewriteSources));
+            OpenRewriteRunner.Result rewritten = OpenRewriteRunner.run(root, config, rewriteSources,
                 model.classpath);
             notes.addAll(rewritten.notes);
             rewriteChanged.addAll(rewritten.changes);

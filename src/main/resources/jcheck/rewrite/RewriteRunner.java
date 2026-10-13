@@ -53,8 +53,41 @@ public final class RewriteRunner {
         if (args.length > 3 && !args[3].isBlank()) {
             builder.classpath(args[3].split(File.pathSeparator));
         }
-        JavaParser parser = builder.build();
-        List<SourceFile> current = new ArrayList<>(parser.parse(paths, base, ctx).toList());
+        JavaParser javaParser = builder.build();
+        List<Path> javaPaths = new ArrayList<>();
+        List<Path> kotlinPaths = new ArrayList<>();
+        for (Path p : paths) {
+            String name = p.getFileName() == null ? "" : p.getFileName().toString();
+            if (name.endsWith(".kt") || name.endsWith(".kts")) {
+                kotlinPaths.add(p);
+            } else {
+                javaPaths.add(p);
+            }
+        }
+        List<SourceFile> current = new ArrayList<>();
+        if (!javaPaths.isEmpty()) {
+            current.addAll(javaParser.parse(javaPaths, base, ctx).toList());
+        }
+        if (!kotlinPaths.isEmpty()) {
+            /*
+             * Kotlin is parsed only when rewrite-kotlin is on the classpath; the call is reflective
+             * so this runner still compiles when [fix] rewrite_kotlin = false leaves it out.
+             */
+            try {
+                Class<?> kotlinParserClass = Class.forName("org.openrewrite.kotlin.KotlinParser");
+                Object kotlinBuilder = kotlinParserClass.getMethod("builder").invoke(null);
+                Object kotlinParser = kotlinBuilder.getClass().getMethod("build").invoke(kotlinBuilder);
+                java.lang.reflect.Method parse = Class.forName("org.openrewrite.Parser").getMethod(
+                    "parse", Iterable.class, Path.class, ExecutionContext.class);
+                @SuppressWarnings("unchecked")
+                java.util.stream.Stream<SourceFile> parsed =
+                    (java.util.stream.Stream<SourceFile>) parse.invoke(kotlinParser, kotlinPaths,
+                        base, ctx);
+                current.addAll(parsed.toList());
+            } catch (ReflectiveOperationException | RuntimeException e) {
+                System.err.println("KOTLIN_UNAVAILABLE\t" + e);
+            }
+        }
 
         Environment environment = Environment.builder().scanRuntimeClasspath().build();
         /*

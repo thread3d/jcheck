@@ -6,3 +6,4 @@ openrewrite	org.openrewrite.staticanalysis.UseTryWithResources	J1503	5	converted
 openrewrite	org.openrewrite.staticanalysis.UnnecessaryParentheses	J1504	5	removed unnecessary parentheses	unnecessary parentheses	unnecessary-parentheses	the parentheses do not change precedence	docs/J1504.md
 openrewrite	org.openrewrite.java.format.EmptyNewlineAtEndOfFile	J1505	5	added the missing newline at the end of the file	missing final newline	final-newline	POSIX tooling expects a trailing newline	docs/J1505.md
 openrewrite	org.openrewrite.staticanalysis.CodeCleanup	J1506	5	applied the CodeCleanup recipe set	code cleanup	code-cleanup	review each change the composite made	docs/J1506.md
+openrewrite	org.openrewrite.kotlin.cleanup.RemoveTrailingSemicolon	J1507	5	removed a trailing semicolon in Kotlin	Kotlin trailing semicolon	kotlin-cleanup	Kotlin does not need statement terminators	docs/J1507.md

@@ -131,7 +131,7 @@ alone, because tools word the same problem differently. Diagnostics that are the
 only when code, file, line, *and detail lines* match — javac reports one missing type twice, and
 merging on the message alone would have collapsed two genuinely different unresolved names.
 
-**Catalog entries are data.** 214 rows in TSV resources map `(source, source_key)` to a stable
+**Catalog entries are data.** 215 rows in TSV resources map `(source, source_key)` to a stable
 code, tier, curated headline and help lines. Unmapped keys are never dropped: they get a stable
 `J9xxx` code derived from an FNV-1a hash of the key, and are flagged as needing curation.
 
@@ -206,10 +206,13 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   Sources are snapshotted first and every edit is reverted when the re-check gets worse, like the
   other fix paths. Every applied change is reported with a catalog code — J1501 MissingOverride,
   J1502 FinalizeLocalVariables, J1503 UseTryWithResources, J1504 UnnecessaryParentheses, J1505
-  EmptyNewlineAtEndOfFile, J1506 CodeCleanup, or J1500 for a recipe with no curated row — so a
-  rewrite is auditable in the same model as any other finding. Recipes come from any library on the
-  runner classpath: `rewrite-static-analysis`, `rewrite-java` itself, and anything added through
-  `[fix] rewrite_libraries`. jcheck itself has no OpenRewrite dependency.
+  EmptyNewlineAtEndOfFile, J1506 CodeCleanup, J1507 Kotlin trailing semicolons, or J1500 for a recipe
+  with no curated row — so a rewrite is auditable in the same model as any other finding. Recipes
+  come from any library on the runner classpath: `rewrite-static-analysis`, `rewrite-java` itself,
+  `rewrite-kotlin`, and anything added through `[fix] rewrite_libraries`. Java and Kotlin sources are
+  both rewritten (Kotlin is found under `src/main/kotlin` and friends and never handed to javac),
+  and the Kotlin frontend is loaded reflectively so `[fix] rewrite_kotlin = false` still works.
+  jcheck itself has no OpenRewrite dependency.
 - **Build-tool models** — with a Gradle installation present, `jcheck` reads the project through the
   **Gradle Tooling API**: every subproject, its source sets and its resolved classpath, compiled from
   a small runner and cached by build-file fingerprint. With a Maven installation, the classpath is
@@ -234,12 +237,12 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   per-session process and source-change subscriptions. See [MCP interface](#mcp-interface).
 - **`init`, `fix`, `explain`, `fmt`, `build`, `test`** — including a JUnit XML parser that lifts
   project stack frames above framework frames.
-- **Tests** — 1389 assertions: unit tests plus 22 rustc-style UI golden cases under
+- **Tests** — 1393 assertions: unit tests plus 22 rustc-style UI golden cases under
   `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output. Set
   `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end analyzer cases (Error Prone, NullAway, the
   Checker Framework, SpotBugs, jcstress, OpenRewrite, the twenty-one-library corpus and
-  `jcheck-junit`), which need downloaded jars; that run has 1503 assertions on JDK 20, 1500 on 21 and
-  1492 on 25, where an analyzer or corpus library that does not support the JDK is skipped rather
+  `jcheck-junit`), which need downloaded jars; that run has 1509 assertions on JDK 20, 1506 on 21 and
+  1498 on 25, where an analyzer or corpus library that does not support the JDK is skipped rather
   than counted green.
 - **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
   (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
@@ -256,11 +259,11 @@ overstate itself:
   wrapper or binary, and if that is absent too it keeps the heuristic classpath and says so. Gradle
   source sets for non-Gradle layouts, and build tools other than Gradle and Maven (Bazel, sbt, Ant),
   have no dedicated path.
-- **OpenRewrite coverage is opt-in and Java-only.** `jcheck rewrite` runs the recipes named in
+- **OpenRewrite coverage is opt-in.** `jcheck rewrite` runs the recipes named in
   `[fix] rewrite_recipes`; the recipe libraries are whatever `rewrite-static-analysis`,
-  `rewrite-java` and `[fix] rewrite_libraries` put on the runner classpath, and a recipe that is not
-  there fails loudly rather than being skipped. Other OpenRewrite language frontends (Kotlin,
-  Python, …) are not wired up.
+  `rewrite-java`, `rewrite-kotlin` and `[fix] rewrite_libraries` put on the runner classpath, and a
+  recipe that is not there fails loudly rather than being skipped. Java and Kotlin sources are
+  rewritten; other OpenRewrite frontends (Python, YAML, …) are not wired up.
 
 ## Testing the tool
 

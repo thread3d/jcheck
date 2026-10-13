@@ -1345,6 +1345,24 @@ final class UnitTests {
         check("plugins:rewrite-static-code", jfOut.stdout.contains("J1504"), jfOut.stdout);
         deleteRecursively(jf);
 
+        // A Kotlin source and a Kotlin recipe, to prove the rewrite path is not Java-only.
+        Path kt = Files.createTempDirectory("jcheck-rewrite-kt-it-");
+        Path ktSrc = kt.resolve("src/main/kotlin/demo");
+        Files.createDirectories(ktSrc);
+        Files.writeString(ktSrc.resolve("K.kt"),
+            "package demo\n\nfun answer(): Int {\n    return 42;\n}\n", StandardCharsets.UTF_8);
+        Files.writeString(kt.resolve("jcheck.toml"),
+            "[errorprone]\ncustom_pack = false\n\n[fix]\nrewrite_recipes = ["
+            + "\"org.openrewrite.kotlin.cleanup.RemoveTrailingSemicolon\"]\n",
+            StandardCharsets.UTF_8);
+        CheckRequest ktReq = new CheckRequest();
+        ktReq.root = kt.toString();
+        CheckCommand.Outcome ktOut = RewriteCommand.run(ktReq);
+        String kotlin = Files.readString(ktSrc.resolve("K.kt"), StandardCharsets.UTF_8);
+        check("plugins:rewrite-kotlin", !kotlin.contains("return 42;"), kotlin);
+        check("plugins:rewrite-kotlin-code", ktOut.stdout.contains("J1507"), ktOut.stdout);
+        deleteRecursively(kt);
+
         junitHarnessIntegrationTest();
     }
 

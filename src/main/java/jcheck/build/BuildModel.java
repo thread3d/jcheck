@@ -513,6 +513,59 @@ public final class BuildModel {
         return values;
     }
 
+    /**
+     * Kotlin sources for the OpenRewrite frontend. They are deliberately not part of {@link #sources}
+     * because javac cannot compile them; only a rewrite run asks for them.
+     */
+    public static List<Path> kotlinSources(Path root, JcheckConfig config) {
+        Path absRoot = root.toAbsolutePath().normalize();
+        List<Path> dirs = new ArrayList<>();
+        for (String s : config.sourceRoots) {
+            Path p = absRoot.resolve(s);
+            if (Files.isDirectory(p)) {
+                dirs.add(p);
+            }
+        }
+        for (String candidate : List.of("src/main/kotlin", "src/test/kotlin")) {
+            Path p = absRoot.resolve(candidate);
+            if (Files.isDirectory(p)) {
+                dirs.add(p);
+            }
+        }
+        for (Path sourceRoot : moduleSourceRoots(absRoot)) {
+            Path module = sourceRootModule(sourceRoot);
+            if (module == null) {
+                continue;
+            }
+            for (String candidate : List.of("src/main/kotlin", "src/test/kotlin")) {
+                Path p = module.resolve(candidate);
+                if (Files.isDirectory(p) && !dirs.contains(p)) {
+                    dirs.add(p);
+                }
+            }
+        }
+        List<Path> out = new ArrayList<>();
+        for (Path dir : dirs) {
+            try (Stream<Path> stream = Files.walk(dir)) {
+                stream.filter(Files::isRegularFile)
+                    .filter(p -> {
+                        String name = p.getFileName().toString();
+                        return name.endsWith(".kt") || name.endsWith(".kts");
+                    })
+                    .filter(p -> !hasSkippedSegment(dir, p, false))
+                    .sorted()
+                    .forEach(p -> {
+                        if (!out.contains(p)) {
+                            out.add(p);
+                        }
+                    });
+            } catch (IOException ignored) {
+                // an unreadable subtree simply contributes no Kotlin sources
+            }
+        }
+        return out;
+    }
+
     private static String relativeAll(Path root, List<Path> paths) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < paths.size(); i++) {
