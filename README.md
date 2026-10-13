@@ -217,8 +217,8 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   `rewrite-kotlin`, and anything added through `[fix] rewrite_libraries`. Java and Kotlin sources are
   both rewritten (Kotlin is found under `src/main/kotlin` and friends and never handed to javac),
   and the Kotlin frontend is loaded reflectively so `[fix] rewrite_kotlin = false` still works.
-  jcheck itself has no OpenRewrite dependency. See "Limitations", "What is not implemented yet" and
-  "Out of scope" for the boundaries.
+  jcheck itself has no OpenRewrite dependency. See "Limitations" and "Out of scope" for the
+  boundaries.
 - **Build-tool models** — with a Gradle installation present, `jcheck` reads the project through the
   **Gradle Tooling API**: every subproject, its source sets and its resolved classpath, compiled from
   a small runner and cached by build-file fingerprint. With a Maven installation, the classpath is
@@ -256,6 +256,12 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   `Todo()`/`Unreachable()`/`Unimplemented()` markers behind J0902, and a sealed `Result` type.
   `./build.sh` produces `out/jcheck-support.jar`.
 
+Nothing in SPEC.md's milestones (M0–M4) is outstanding: every capability they name — the feedback
+loop, Error Prone/NullAway and the level policy, the test harness, the check pack and analyzers, and
+M4's Maven support, incremental dependents graph, OpenRewrite catalog, PIT, JaCoCo, the jcstress and
+Lincheck hooks, Infer, the LSP bridge and CI SARIF — is implemented. What a feature does *not* cover
+is under "Limitations" below; things the spec never asked for are under "Out of scope".
+
 ## Limitations
 
 Features that work, within stated bounds. Each entry says what holds and what does not.
@@ -276,15 +282,6 @@ Features that work, within stated bounds. Each entry says what holds and what do
 - **JDK coverage has a floor and a target range.** jcheck runs on JDK 17 or newer (tested on 17, 20,
   21 and 25); Java 8 and 11 are checked as `--release` targets, not as the JDK jcheck runs on. See
   "Environment".
-
-## What is not implemented yet
-
-Nothing. Every milestone in SPEC.md — M0's feedback loop, M1's Error Prone/NullAway/policy work, M2's
-test harness, M3's check pack and analyzers, and M4's Maven support, incremental dependents graph,
-OpenRewrite catalog, PIT, JaCoCo, jcstress/Lincheck hooks, Infer, LSP bridge and CI SARIF — is
-implemented. Lincheck was the last one: `jcheck lincheck` runs the project's `@Operation` tests and
-reports linearizability failures as `J1202`. What each feature does *not* cover is listed under
-"Limitations" and "Out of scope".
 
 ## Out of scope
 
