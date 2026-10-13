@@ -240,23 +240,24 @@ end-to-end analyzer cases — Error Prone, NullAway, the Checker Framework, Spot
 when one is present and skips otherwise.
 
 Not covered here, and stated so a green run is not mistaken for more than it is: the
-false-positive corpus over real third-party projects, a JDK matrix (this checkout is JDK 20 only),
-and daemon out-of-memory recovery. The daemon does have classpath-change, stale-cache, concurrent
+false-positive corpus over real third-party projects, JDK 25 (the suite runs on JDK 20 and 21), and
+daemon out-of-memory recovery. The daemon does have classpath-change, stale-cache, concurrent
 request and lifecycle tests, every catalog entry is checked to have an implementation, every
 machine-applicable suggestion is applied and re-checked, and the incremental planner is tested for
 the body-change, API-change and classpath-change rules.
 
 ## Environment
 
-Built and tested on **JDK 20** because that is what is installed here; SPEC.md assumes JDK 21 or
-25. JDK 20 lacks nothing jcheck itself needs (records, sealed types, switch expressions, Unix
-domain sockets), but the JDK-21 baseline in the spec matters for the *checked code*: pattern
-switch exhaustiveness and `-Xlint:this-escape` need 21+. UI goldens embed javac's own message
-wording, which is the reason SPEC.md lists a JDK matrix as a test dimension. The attached plugins
+Built and tested on **JDK 20 and JDK 21**, both installed under the workspace's `tools/`
+directory: the full suite — UI goldens and all opt-in analyzer cases included — passes on both.
+SPEC.md assumes JDK 21 or 25; JDK 25 is not installed here. The JDK-21 baseline in the spec matters
+for the *checked code*: pattern switch exhaustiveness and `-Xlint:this-escape` need 21+. UI goldens
+embed javac's own message wording, which is the reason SPEC.md lists a JDK matrix as a test
+dimension; running on 20 and 21 showed no wording drift for the curated cases. The attached plugins
 are pinned to Error Prone **2.24.1**, NullAway **0.10.18** (with NullAway's `dataflow-nullaway` and
 JSpecify pulled in transitively), the Checker Framework **3.42.0**, SpotBugs **4.8.6**, PIT
-**1.15.8**, JaCoCo **0.8.12** and jcstress **0.16**, which are the versions verified against JDK 20
-here. All of them are configurable in `jcheck.toml`. Infer is a native binary and is located rather
+**1.15.8**, JaCoCo **0.8.12** and jcstress **0.16**, verified on both JDKs. All of them are
+configurable in `jcheck.toml`. Infer is a native binary and is located rather
 than resolved; the workspace copy used here is v1.2.0.
 
 ## Layout
