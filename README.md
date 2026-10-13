@@ -179,10 +179,10 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   per-session process and source-change subscriptions. See [MCP interface](#mcp-interface).
 - **`init`, `fix`, `explain`, `fmt`, `build`, `test`** — including a JUnit XML parser that lifts
   project stack frames above framework frames.
-- **Tests** — 1193 assertions: unit tests plus 21 rustc-style UI golden cases under
+- **Tests** — 1207 assertions: unit tests plus 22 rustc-style UI golden cases under
   `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output. Set
   `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end analyzer cases (Error Prone, NullAway, the
-  Checker Framework, SpotBugs and `jcheck-junit`), which need downloaded jars; that run has 1205
+  Checker Framework, SpotBugs and `jcheck-junit`), which need downloaded jars; that run has 1219
   assertions.
 - **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
   (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
@@ -203,6 +203,19 @@ overstate itself:
 - **No incremental dependents graph, PIT, JaCoCo, jcstress/Lincheck, Infer, or LSP bridge.**
 - **`jcheck fix` is not a patch engine** — it applies `SuggestedFix`-style edits from the
   diagnostic model, not Error Prone patch mode or OpenRewrite recipes.
+
+## Testing the tool
+
+`./tests/run.sh` builds jcheck and runs the unit tests, the 22 rustc-style UI golden cases and the
+MCP tests; the default suite needs only a JDK, no network. `JCHECK_TEST_PLUGINS=1` adds the
+end-to-end analyzer cases — Error Prone, NullAway, the Checker Framework, SpotBugs and
+`jcheck-junit` — which download and cache their jars.
+
+Not covered here, and stated so a green run is not mistaken for more than it is: the
+false-positive corpus over real third-party projects, a JDK matrix (this checkout is JDK 20 only),
+and daemon classpath-change, out-of-memory and stale-cache recovery. The daemon does have a
+concurrent-request and lifecycle test, every catalog entry is checked to have an implementation,
+and every machine-applicable suggestion is applied and re-checked by a unit test.
 
 ## Environment
 

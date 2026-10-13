@@ -5,11 +5,16 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import javax.tools.JavaCompiler;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.StandardLocation;
@@ -19,8 +24,11 @@ import jcheck.build.DependencyResolver;
 import jcheck.catalog.Catalog;
 import jcheck.catalog.CatalogEntry;
 import jcheck.cli.CheckCommand;
+import jcheck.cli.CheckRequest;
 import jcheck.config.JcheckConfig;
 import jcheck.config.Toml;
+import jcheck.daemon.Daemon;
+import jcheck.daemon.DaemonClient;
 import jcheck.engine.CascadeFilter;
 import jcheck.engine.Dedupe;
 import jcheck.engine.LevelPolicy;
@@ -79,7 +87,113 @@ final class UnitTests {
         buildModelTests();
         dependencyResolverTests();
         mavenResolverTests();
+        suggestionRoundTripTests();
+        daemonTests();
         errorProneIntegrationTests();
+    }
+
+    // ---- suggestion round-trip ---------------------------------------------
+
+    /**
+     * The SPEC gate for suggestions: every machine-applicable fix must apply, and the re-check must
+     * no longer report that code.
+     */
+    private static void suggestionRoundTripTests() throws Exception {
+        Path tmp = Files.createTempDirectory("jcheck-roundtrip-");
+        Path src = tmp.resolve("src/main/java/demo");
+        Files.createDirectories(src);
+        Files.writeString(src.resolve("F.java"),
+            "package demo;\n"
+            + "public final class F {\n"
+            + "    static int narrow(long total) {\n"
+            + "        return (int) total;\n"
+            + "    }\n"
+            + "    static int sum(int a, int b) {\n"
+            + "        String label = \"x\";\n"
+            + "        return a + b + label.length();\n"
+            + "    }\n"
+            + "}\n", StandardCharsets.UTF_8);
+
+        CheckRequest req = new CheckRequest();
+        req.root = tmp.toString();
+        req.profile = "standard";
+        CheckCommand.Analysis before = CheckCommand.analyze(req);
+        check("fix:analyze-ok", before.ok(), before.error);
+
+        Set<String> codes = new HashSet<>();
+        for (Diagnostic d : before.report.diagnostics) {
+            codes.add(d.code);
+        }
+        check("fix:has-j0302", codes.contains("J0302"), "codes=" + codes);
+        check("fix:has-j0706", codes.contains("J0706"), "codes=" + codes);
+
+        FixApplier.Result applied = FixApplier.apply(tmp, before.report.diagnostics, false);
+        check("fix:applied-edits", applied.editCount >= 2, "edits=" + applied.editCount);
+
+        CheckCommand.Analysis after = CheckCommand.analyze(req);
+        check("fix:recheck-ok", after.ok(), after.error);
+        Set<String> afterCodes = new HashSet<>();
+        for (Diagnostic d : after.report.diagnostics) {
+            afterCodes.add(d.code);
+        }
+        check("fix:j0302-resolved", !afterCodes.contains("J0302"), "codes=" + afterCodes);
+        check("fix:j0706-resolved", !afterCodes.contains("J0706"), "codes=" + afterCodes);
+        deleteRecursively(tmp);
+    }
+
+    // ---- daemon ------------------------------------------------------------
+
+    /**
+     * Concurrent requests against one warm daemon must both succeed with the same output, and the
+     * daemon must shut down. Environments without Unix sockets or /tmp execution skip it: the
+     * in-process path is covered by every other test.
+     */
+    private static void daemonTests() throws Exception {
+        Path root = Files.createTempDirectory("jcheck-daemon-");
+        Path src = root.resolve("src/main/java/demo");
+        Files.createDirectories(src);
+        Files.writeString(src.resolve("D.java"),
+            "package demo;\n"
+            + "public final class D {\n"
+            + "    public static int one() {\n"
+            + "        return 1;\n"
+            + "    }\n"
+            + "}\n", StandardCharsets.UTF_8);
+
+        boolean started;
+        try {
+            started = Daemon.spawn(root, 20_000);
+        } catch (IOException | RuntimeException e) {
+            started = false;
+        }
+        if (!started) {
+            deleteRecursively(root);
+            return;
+        }
+        try {
+            check("daemon:ping", DaemonClient.ping(root.toString()), "daemon did not answer a ping");
+            CheckRequest req = new CheckRequest();
+            req.root = root.toString();
+            req.format = "human";
+            ExecutorService pool = Executors.newFixedThreadPool(2);
+            try {
+                Callable<DaemonClient.Response> call = () -> DaemonClient.check(root.toString(), req);
+                Future<DaemonClient.Response> first = pool.submit(call);
+                Future<DaemonClient.Response> second = pool.submit(call);
+                DaemonClient.Response a = first.get();
+                DaemonClient.Response b = second.get();
+                eq("daemon:concurrent-exit", 0, a.exitCode);
+                eq("daemon:consistent-output", a.stdout, b.stdout);
+                check("daemon:has-tier-line", a.stdout.contains("analysis reached"),
+                    "stdout=" + a.stdout);
+            } finally {
+                pool.shutdownNow();
+            }
+        } finally {
+            check("daemon:shutdown", DaemonClient.shutdown(root.toString()),
+                "daemon did not shut down");
+            deleteRecursively(root);
+        }
     }
 
     // ---- dependency resolution ---------------------------------------------
