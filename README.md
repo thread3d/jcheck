@@ -209,7 +209,7 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output. Set
   `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end analyzer cases (Error Prone, NullAway, the
   Checker Framework, SpotBugs, jcstress and `jcheck-junit`), which need downloaded jars; that run
-  has 1262 assertions.
+  has 1262 assertions (1254 on JDK 25, where the analyzers that do not support it are skipped).
 - **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
   (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
   `Todo()`/`Unreachable()`/`Unimplemented()` markers behind J0902, and a sealed `Result` type.
@@ -240,23 +240,27 @@ end-to-end analyzer cases — Error Prone, NullAway, the Checker Framework, Spot
 when one is present and skips otherwise.
 
 Not covered here, and stated so a green run is not mistaken for more than it is: the
-false-positive corpus over real third-party projects, JDK 25 (the suite runs on JDK 20 and 21), and
-daemon out-of-memory recovery. The daemon does have classpath-change, stale-cache, concurrent
-request and lifecycle tests, every catalog entry is checked to have an implementation, every
-machine-applicable suggestion is applied and re-checked, and the incremental planner is tested for
-the body-change, API-change and classpath-change rules.
+false-positive corpus over real third-party projects, and daemon out-of-memory recovery. The suite
+runs on JDK 20, 21 and 25; on 25 the analyzers that do not support it are skipped rather than
+counted green. The daemon does have classpath-change, stale-cache, concurrent request and lifecycle
+tests, every catalog entry is checked to have an implementation, every machine-applicable suggestion
+is applied and re-checked, and the incremental planner is tested for the body-change, API-change and
+classpath-change rules.
 
 ## Environment
 
-Built and tested on **JDK 20 and JDK 21**, both installed under the workspace's `tools/`
-directory: the full suite — UI goldens and all opt-in analyzer cases included — passes on both.
-SPEC.md assumes JDK 21 or 25; JDK 25 is not installed here. The JDK-21 baseline in the spec matters
-for the *checked code*: pattern switch exhaustiveness and `-Xlint:this-escape` need 21+. UI goldens
-embed javac's own message wording, which is the reason SPEC.md lists a JDK matrix as a test
-dimension; running on 20 and 21 showed no wording drift for the curated cases. The attached plugins
+Built and tested on **JDK 20, JDK 21 and JDK 25**, all installed under the workspace's `tools/`
+directory. jcheck itself and the built-in T3 pack pass the full suite — UI goldens included — on all
+three, with no javac wording drift across them. The pinned third-party analyzers (Error Prone
+2.24.1, NullAway 0.10.18, SpotBugs 4.8.6) support JDK 17-21: on JDK 25 they cannot run, so their
+end-to-end cases are skipped there and the pins must be bumped to releases that support 25. When an
+analyzer cannot run, jcheck reports a plugin failure on the tier line rather than a quiet T5. The
+JDK-21 baseline in the spec matters for the *checked code*: pattern switch exhaustiveness and
+`-Xlint:this-escape` need 21+. UI goldens embed javac's own message wording, which is the reason
+SPEC.md lists a JDK matrix as a test dimension. The attached plugins
 are pinned to Error Prone **2.24.1**, NullAway **0.10.18** (with NullAway's `dataflow-nullaway` and
 JSpecify pulled in transitively), the Checker Framework **3.42.0**, SpotBugs **4.8.6**, PIT
-**1.15.8**, JaCoCo **0.8.12** and jcstress **0.16**, verified on both JDKs. All of them are
+**1.15.8**, JaCoCo **0.8.12** and jcstress **0.16**, verified on JDK 20 and 21. All of them are
 configurable in `jcheck.toml`. Infer is a native binary and is located rather
 than resolved; the workspace copy used here is v1.2.0.
 

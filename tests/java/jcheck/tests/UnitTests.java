@@ -570,6 +570,10 @@ final class UnitTests {
         if (!"1".equals(System.getenv("JCHECK_TEST_PLUGINS"))) {
             return;
         }
+        // Error Prone 2.24.1/NullAway 0.10.18 and SpotBugs 4.8.6 support JDK 17-21. On a newer JDK
+        // they cannot run, so those cases are skipped here and the README says to bump the pins.
+        boolean analyzers = Runtime.version().feature() <= 21;
+        if (analyzers) {
         Path tmp = Files.createTempDirectory("jcheck-errorprone-it-");
         Path src = tmp.resolve("src/main/java/demo");
         Files.createDirectories(src);
@@ -596,6 +600,7 @@ final class UnitTests {
         contains("plugins:source-nullaway", out.stdout, "source: nullaway");
         contains("plugins:tier3", out.stdout, "analysis reached T3");
         deleteRecursively(tmp);
+        }
 
         Path cf = Files.createTempDirectory("jcheck-checker-it-");
         Path cfSrc = cf.resolve("src/main/java/demo");
@@ -616,6 +621,7 @@ final class UnitTests {
         contains("plugins:tier4", cfOut.stdout, "analysis reached T4");
         deleteRecursively(cf);
 
+        if (analyzers) {
         Path sb = Files.createTempDirectory("jcheck-spotbugs-it-");
         Path sbSrc = sb.resolve("src/main/java/demo");
         Files.createDirectories(sbSrc);
@@ -633,7 +639,9 @@ final class UnitTests {
         contains("plugins:spotbugs-report", sbOut.stdout, "source: spotbugs");
         contains("plugins:tier5", sbOut.stdout, "analysis reached T5");
         deleteRecursively(sb);
+        }
 
+        if (analyzers) {
         Path fx = Files.createTempDirectory("jcheck-fix-it-");
         Path fxSrc = fx.resolve("src/main/java/demo");
         Files.createDirectories(fxSrc);
@@ -654,6 +662,7 @@ final class UnitTests {
         check("plugins:fix-error-prone-patch", patched.contains("Objects.equals"), patched);
         eq("plugins:fix-clean-after-patch", 0, fxOut.exitCode);
         deleteRecursively(fx);
+        }
 
         Path jc = Files.createTempDirectory("jcheck-jcstress-it-");
         Path jcSrc = jc.resolve("src/test/java/demo");
