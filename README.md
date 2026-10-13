@@ -212,9 +212,8 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   `rewrite-kotlin`, and anything added through `[fix] rewrite_libraries`. Java and Kotlin sources are
   both rewritten (Kotlin is found under `src/main/kotlin` and friends and never handed to javac),
   and the Kotlin frontend is loaded reflectively so `[fix] rewrite_kotlin = false` still works.
-  jcheck itself has no OpenRewrite dependency. The parts of OpenRewrite's surface that are not wired
-  up — project `rewrite.yml` discovery, per-recipe options, non-JVM frontends — are named in
-  "Limitations and what is not implemented yet".
+  jcheck itself has no OpenRewrite dependency. What is bounded and what is absent is listed under
+  "Limitations" and "What is not implemented yet".
 - **Build-tool models** — with a Gradle installation present, `jcheck` reads the project through the
   **Gradle Tooling API**: every subproject, its source sets and its resolved classpath, compiled from
   a small runner and cached by build-file fingerprint. With a Maven installation, the classpath is
@@ -251,25 +250,35 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   `Todo()`/`Unreachable()`/`Unimplemented()` markers behind J0902, and a sealed `Result` type.
   `./build.sh` produces `out/jcheck-support.jar`.
 
-## Limitations and what is not implemented yet
+## Limitations
 
-Stated plainly, because a tool whose whole premise is "a clean check means something" must not
-overstate itself. A feature listed here may still be implemented — the entry says exactly what part
-of it is missing.
+Features that work, within stated bounds. Each entry says what holds and what does not.
 
-- **Build-tool coverage is best-effort, not universal.** The Gradle Tooling API and the Maven
-  embedder both need that tool's installation on the machine; without it jcheck runs the project's
-  wrapper or binary, and if that is absent too it keeps the heuristic classpath and says so. Gradle
-  source sets for non-Gradle layouts, and build tools other than Gradle and Maven (Bazel, sbt, Ant),
-  have no dedicated path.
-- **OpenRewrite is implemented, but only part of its surface is wired up.** `jcheck rewrite` exists,
-  is tested end to end, and applies the recipes named in `[fix] rewrite_recipes` from the recipe
-  libraries on the runner classpath (`rewrite-static-analysis`, `rewrite-java`, `rewrite-kotlin`,
-  plus anything in `[fix] rewrite_libraries`); a recipe that is not on that classpath fails loudly
-  rather than being skipped. What is *not* wired up: a project's own `rewrite.yml` declarative
-  recipes are not discovered (the runner scans the classpath, not the project tree), per-recipe
-  `@Option` values cannot be set, recipe-marketplace/Artifactory resolution is absent, and only Java
-  and Kotlin sources are parsed — other OpenRewrite frontends (Python, YAML, …) are not.
+- **Build-tool models are best-effort.** The Gradle Tooling API and the Maven embedder need that
+  tool's installation on the machine; without it jcheck runs the project's wrapper or binary, and if
+  that is absent too it keeps the heuristic classpath and says so.
+- **OpenRewrite is partial.** `jcheck rewrite` applies the recipes named in `[fix] rewrite_recipes`
+  from the recipe libraries on the runner classpath; a recipe that is not there fails loudly rather
+  than being skipped. Java and Kotlin sources are rewritten.
+- **The corpus is a guard, not a proof.** Twenty-one real libraries and their per-library noise
+  budgets catch regressions; they do not establish that a rule has no false positives. What the suite
+  actually runs is under "Testing the tool".
+- **JDK coverage has a floor and a target range.** jcheck runs on JDK 17 or newer (tested on 17, 20,
+  21 and 25); Java 8 and 11 are checked as `--release` targets, not as the JDK jcheck runs on. See
+  "Environment".
+
+## What is not implemented yet
+
+Plain absences, not bounds on something that works:
+
+- **Build models for Bazel, sbt or Ant.** Gradle and Maven only.
+- **A project's own OpenRewrite `rewrite.yml` declarative recipes.** Only recipes on the runner
+  classpath are discovered.
+- **OpenRewrite recipe options and recipe catalogues.** Per-recipe `@Option` values cannot be set,
+  and there is no marketplace or Artifactory resolution by recipe name.
+- **OpenRewrite frontends other than Java and Kotlin** (Python, YAML, XML, …).
+- **Kotlin and Scala in the javac check pack.** T0–T3 are Java-only: Kotlin can be rewritten, not
+  checked.
 
 ## Testing the tool
 
@@ -280,8 +289,8 @@ OpenRewrite (Java and Kotlin), the twenty-one-library corpus and `jcheck-junit` 
 cache their jars. The Infer case runs against a native binary when one is present and skips
 otherwise.
 
-Not covered here, and stated so a green run is not mistaken for more than it is: a broad
-false-positive corpus. The suite runs the T3 pack over twenty-one real libraries' `-sources` jars —
+One thing a green run does not prove is that a rule has no false positives. The suite runs the T3
+pack over twenty-one real libraries' `-sources` jars —
 Commons Lang, Gson, Commons Collections 4, Commons Codec, Commons CLI, Commons Math, SnakeYAML,
 jsoup, ASM, SLF4J, RxJava, Commons IO, Commons Text, Commons CSV, Guava, Jackson Databind, JetBrains
 Annotations, ANTLR4 runtime, Commons Exec, Commons Pool and JSR-305, **1.39M lines** in total — and
