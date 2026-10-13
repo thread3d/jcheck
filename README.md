@@ -27,7 +27,8 @@ Requires a JDK and nothing else — no Gradle, no Maven, no network.
 | `jcheck check` | Fast path: in-process javac plus the jcheck check pack, no artifacts. |
 | `jcheck build` | Runs a clean check first, then delegates to the build tool. |
 | `jcheck test` | Delegates to the build tool, then renders JUnit XML reports as diagnostics. `--launcher` runs the tests through the JUnit Platform Console Launcher with `jcheck-junit` attached. |
-| `jcheck fix` | Applies machine-applicable suggestions, re-checks, reverts if errors rose. `--error-prone` also runs Error Prone's patch mode. |
+| `jcheck fix` | Applies machine-applicable suggestions, re-checks, reverts if errors rose. `--error-prone` also runs Error Prone's patch mode, `--rewrite` OpenRewrite recipes. |
+| `jcheck rewrite` | Applies OpenRewrite recipes, re-checks, and keeps the result only if errors did not rise. |
 | `jcheck fmt` | google-java-format, or the project's Spotless task. |
 | `jcheck explain <code>` | Long-form explanation: why it matters, failing and fixed example. |
 | `jcheck init` | Writes `jcheck.toml`; `--agent` adds the agent instructions snippet. |
@@ -130,7 +131,7 @@ alone, because tools word the same problem differently. Diagnostics that are the
 only when code, file, line, *and detail lines* match — javac reports one missing type twice, and
 merging on the message alone would have collapsed two genuinely different unresolved names.
 
-**Catalog entries are data.** 186 rows in TSV resources map `(source, source_key)` to a stable
+**Catalog entries are data.** 191 rows in TSV resources map `(source, source_key)` to a stable
 code, tier, curated headline and help lines. Unmapped keys are never dropped: they get a stable
 `J9xxx` code derived from an FNV-1a hash of the key, and are flagged as needing curation.
 
@@ -198,18 +199,26 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
 - **Concurrency stress (T5)** — `jcheck jcstress` compiles the project's `@JCStressTest` sources
   with the jcstress annotation processor when no `META-INF/TestList` exists yet, runs them, and
   reports every forbidden or interesting outcome as `J1201`.
+- **OpenRewrite recipes (fix)** — `jcheck rewrite` (or `jcheck fix --rewrite`) resolves
+  `rewrite-static-analysis`, compiles a small runner against those jars at run time, and applies the
+  configured recipes (by default MissingOverrideAnnotation, FinalizeLocalVariables and
+  UseTryWithResources) in a forked JVM. Sources are snapshotted first and every edit is reverted when
+  the re-check gets worse, like the other fix paths. jcheck itself has no OpenRewrite dependency.
 - **Daemon** — length-prefixed binary protocol over a Unix domain socket, keyed by a hash of the
   project root so serving a project never writes into it. `jcheck check` uses a running daemon
-  automatically and falls back in-process.
+  automatically and falls back in-process. A dropped connection, a malformed frame or a throwing
+  check leaves it serving; an out-of-memory check is reported and the daemon stops so the client
+  starts a fresh one rather than hanging on a half-dead JVM.
 - **MCP server** — resources-only, stdio JSON-RPC 2.0, with the server acting as the warm
   per-session process and source-change subscriptions. See [MCP interface](#mcp-interface).
 - **`init`, `fix`, `explain`, `fmt`, `build`, `test`** — including a JUnit XML parser that lifts
   project stack frames above framework frames.
-- **Tests** — 1247 assertions: unit tests plus 22 rustc-style UI golden cases under
+- **Tests** — 1268 assertions: unit tests plus 22 rustc-style UI golden cases under
   `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output. Set
   `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end analyzer cases (Error Prone, NullAway, the
-  Checker Framework, SpotBugs, jcstress and `jcheck-junit`), which need downloaded jars; that run
-  has 1262 assertions (1254 on JDK 25, where the analyzers that do not support it are skipped).
+  Checker Framework, SpotBugs, jcstress, OpenRewrite, the Commons Lang corpus and `jcheck-junit`),
+  which need downloaded jars; that run has 1292 assertions (1284 on JDK 25, where the analyzers that
+  do not support it are skipped).
 - **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
   (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
   `Todo()`/`Unreachable()`/`Unimplemented()` markers behind J0902, and a sealed `Result` type.
@@ -226,10 +235,9 @@ overstate itself:
   under the jcheck cache directory and keyed by a fingerprint of the build files, so a warm daemon
   does not pay twice. When the tool is absent or the resolution fails, the heuristic classpath is
   kept and the limitation is stated on every run where it applies.
-- **`jcheck fix` does not run OpenRewrite recipes.** It applies the diagnostic model's
-  machine-applicable suggestions and, with `--error-prone`, Error Prone's own patch mode
-  (`-XepPatchChecks` / `-XepPatchLocation:IN_PLACE`); the sources are snapshotted first and every
-  edit is reverted when the re-check gets worse.
+- **OpenRewrite coverage is opt-in and Java-only.** `jcheck rewrite` runs the recipes named in
+  `[fix] rewrite_recipes` from `rewrite-static-analysis`; other recipe libraries are not resolved,
+  and a recipe that is not on the classpath fails loudly rather than being skipped.
 
 ## Testing the tool
 
@@ -239,13 +247,15 @@ end-to-end analyzer cases — Error Prone, NullAway, the Checker Framework, Spot
 `jcheck-junit` — which download and cache their jars. The Infer case runs against a native binary
 when one is present and skips otherwise.
 
-Not covered here, and stated so a green run is not mistaken for more than it is: the
-false-positive corpus over real third-party projects, and daemon out-of-memory recovery. The suite
-runs on JDK 20, 21 and 25; on 25 the analyzers that do not support it are skipped rather than
-counted green. The daemon does have classpath-change, stale-cache, concurrent request and lifecycle
-tests, every catalog entry is checked to have an implementation, every machine-applicable suggestion
-is applied and re-checked, and the incremental planner is tested for the body-change, API-change and
-classpath-change rules.
+Not covered here, and stated so a green run is not mistaken for more than it is: a broad
+false-positive corpus. The suite does run the T3 pack over Apache Commons Lang — 93k lines, 5
+diagnostics per kLOC, every upstream key catalogued on both JDK 20 and JDK 25 — but one library is
+not a corpus. The suite runs on JDK 20, 21 and 25; on 25 the analyzers that do not support it are
+skipped rather than counted green. The daemon tests cover classpath change, stale cache, concurrent
+requests, malformed frames, shutdown and out-of-memory recovery (a constrained-heap daemon must
+answer rather than hang, and a fresh one must come up afterwards). Every catalog entry is checked to
+have an implementation, every machine-applicable suggestion is applied and re-checked, and the
+incremental planner is tested for the body-change, API-change and classpath-change rules.
 
 ## Environment
 
@@ -260,7 +270,8 @@ JDK-21 baseline in the spec matters for the *checked code*: pattern switch exhau
 SPEC.md lists a JDK matrix as a test dimension. The attached plugins
 are pinned to Error Prone **2.24.1**, NullAway **0.10.18** (with NullAway's `dataflow-nullaway` and
 JSpecify pulled in transitively), the Checker Framework **3.42.0**, SpotBugs **4.8.6**, PIT
-**1.15.8**, JaCoCo **0.8.12** and jcstress **0.16**, verified on JDK 20 and 21. All of them are
+**1.15.8**, JaCoCo **0.8.12**, jcstress **0.16** and OpenRewrite (via `rewrite-static-analysis`
+**2.41.1**, which pulls `rewrite-java` 8.90.2), verified on JDK 20 and 21. All of them are
 configurable in `jcheck.toml`. Infer is a native binary and is located rather
 than resolved; the workspace copy used here is v1.2.0.
 

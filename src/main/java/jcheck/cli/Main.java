@@ -57,6 +57,8 @@ public final class Main {
                 return emit(runCheck(rest));
             case "fix":
                 return emit(runFix(rest));
+            case "rewrite":
+                return emit(runRewrite(rest));
             case "test":
                 return emit(TestCommand.run(buildRequest(Args.parse(rest, VALUE_FLAGS))));
             case "explain":
@@ -165,7 +167,13 @@ public final class Main {
     static CheckCommand.Outcome runFix(String[] rest) {
         Args a = Args.parse(rest, VALUE_FLAGS);
         CheckRequest req = buildRequest(a);
-        return FixCommand.run(req, a.has("maybe-incorrect"), a.has("error-prone"));
+        return FixCommand.run(req, a.has("maybe-incorrect"), a.has("error-prone"), a.has("rewrite"));
+    }
+
+    /** {@code jcheck rewrite}: apply OpenRewrite recipes and keep the result only if it improves. */
+    static CheckCommand.Outcome runRewrite(String[] rest) {
+        Args a = Args.parse(rest, VALUE_FLAGS);
+        return FixCommand.run(buildRequest(a), false, false, true);
     }
 
     // ---- explain ----------------------------------------------------------
@@ -430,6 +438,7 @@ public final class Main {
             "  build     delegates to the build tool after a clean check",
             "  test      runs tests via the build tool and renders JUnit XML as diagnostics",
             "  fix       applies machine-applicable suggestions, then re-checks",
+            "  rewrite   applies OpenRewrite recipes, then re-checks",
             "  fmt       google-java-format or Spotless, whichever the project uses",
             "  explain   long-form explanation for a diagnostic code",
             "  init      writes jcheck.toml, optional package stubs and agent instructions",
@@ -450,6 +459,7 @@ public final class Main {
             "  --deny-warnings                         treat warnings as errors",
             "  --report-suppressions                   list every suppression found",
             "  --error-prone                           attach Error Prone and NullAway for this run",
+            "  --rewrite                               with `fix`, also apply OpenRewrite recipes",
             "  --offline                               never download plugin jars; fail if not cached",
             "  --launcher                              run tests via the JUnit Platform Console Launcher",
             "  --coverage                              run tests under the JaCoCo agent (with --launcher)",

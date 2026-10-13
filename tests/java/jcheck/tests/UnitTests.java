@@ -102,6 +102,8 @@ final class UnitTests {
         daemonTests();
         lspTests();
         inferIntegrationTests();
+        corpusTests();
+        daemonOomTests();
         errorProneIntegrationTests();
     }
 
@@ -238,6 +240,27 @@ final class UnitTests {
             } finally {
                 pool.shutdownNow();
             }
+
+            // A truncated frame must not take the daemon down; the next ping still answers.
+            try (java.nio.channels.SocketChannel raw =
+                     java.nio.channels.SocketChannel.open(java.net.StandardProtocolFamily.UNIX)) {
+                raw.connect(java.net.UnixDomainSocketAddress.of(
+                    Daemon.socketPath(root.toString())));
+                java.io.DataOutputStream out = new java.io.DataOutputStream(
+                    java.nio.channels.Channels.newOutputStream(raw));
+                out.writeInt(jcheck.daemon.Protocol.MAGIC);
+                out.writeInt(jcheck.daemon.Protocol.OP_CHECK);
+                out.writeUTF("");
+                out.writeUTF("human");
+                out.writeInt(0);
+                out.writeInt(-1);
+                out.writeUTF("");
+                out.flush(); // stop mid-frame
+            } catch (IOException ignored) {
+                // the daemon may close its side of a broken frame; that is fine
+            }
+            check("daemon:survives-malformed-request", DaemonClient.ping(root.toString()),
+                "daemon died on a malformed request");
         } finally {
             check("daemon:shutdown", DaemonClient.shutdown(root.toString()),
                 "daemon did not shut down");
@@ -266,6 +289,81 @@ final class UnitTests {
             out.closeEntry();
         }
         deleteRecursively(work);
+    }
+
+    // ---- real-project corpus ------------------------------------------------
+
+    /**
+     * Runs the T3 pack over a real library's sources — Apache Commons Lang's own `-sources` jar —
+     * and records diagnostics per kLOC. This is the false-positive guard the curated cases cannot
+     * be: a rule that explodes on ordinary code shows up here as a noise-budget failure instead of
+     * in a user's first run. Opt-in, because it downloads the sources jar.
+     */
+    private static void corpusTests() throws Exception {
+        if (!"1".equals(System.getenv("JCHECK_TEST_PLUGINS"))) {
+            return;
+        }
+        MavenResolver resolver = MavenResolver.standard(false);
+        List<Path> jars = resolver.resolve(List.of("org.apache.commons:commons-lang3:3.14.0:sources"));
+        if (jars.isEmpty()) {
+            return;
+        }
+        Path dir = Files.createTempDirectory("jcheck-corpus-");
+        try {
+            try (java.util.jar.JarFile jar = new java.util.jar.JarFile(jars.get(0).toFile())) {
+                java.util.Enumeration<java.util.jar.JarEntry> entries = jar.entries();
+                while (entries.hasMoreElements()) {
+                    java.util.jar.JarEntry entry = entries.nextElement();
+                    if (!entry.getName().endsWith(".java")) {
+                        continue;
+                    }
+                    Path target = dir.resolve(entry.getName());
+                    Files.createDirectories(target.getParent());
+                    try (java.io.InputStream in = jar.getInputStream(entry)) {
+                        Files.copy(in, target);
+                    }
+                }
+            }
+
+            CheckRequest req = new CheckRequest();
+            req.root = dir.toString();
+            req.profile = "standard";
+            CheckCommand.Analysis analysis = CheckCommand.analyze(req);
+            check("corpus:analyzes", analysis.ok(), analysis.error);
+            if (!analysis.ok()) {
+                return;
+            }
+            check("corpus:tier3-ran", analysis.report.tiers.ran(Tier.T3),
+                "the T3 pack did not run over the corpus");
+            int count = analysis.report.diagnostics.size();
+            java.util.TreeMap<String, Integer> byCode = new java.util.TreeMap<>();
+            int uncatalogued = 0;
+            for (jcheck.model.Diagnostic d : analysis.report.diagnostics) {
+                byCode.merge(d.code, 1, Integer::sum);
+                if (d.code.startsWith("J9")) {
+                    uncatalogued++;
+                }
+            }
+            long lines = 0;
+            try (var walk = Files.walk(dir)) {
+                for (Path p : walk.filter(x -> x.toString().endsWith(".java")).toList()) {
+                    lines += Files.readAllLines(p).size();
+                }
+            }
+            double perKloc = lines == 0 ? 0 : count * 1000.0 / lines;
+            check("corpus:has-findings", count > 0,
+                "the pack found nothing in a real library, which is suspicious");
+            check("corpus:noise-budget", perKloc < 250,
+                "diagnostics/kLOC=" + Math.round(perKloc) + " over " + lines + " lines");
+            StringBuilder top = new StringBuilder();
+            byCode.descendingMap().entrySet().stream().limit(6).forEach(e ->
+                top.append(e.getKey()).append('=').append(e.getValue()).append(' '));
+            System.out.println("corpus: " + count + " diagnostics over " + lines + " lines ("
+                + Math.round(perKloc) + "/kLOC), " + uncatalogued + " uncatalogued key(s); top: "
+                + top.toString().trim());
+        } finally {
+            deleteRecursively(dir);
+        }
     }
 
     // ---- external analyzers ------------------------------------------------
@@ -304,6 +402,80 @@ final class UnitTests {
         contains("infer:via-check", check.stdout, "J1401");
         contains("infer:via-check-tier", check.stdout, "analysis reached T5");
         deleteRecursively(tmp);
+    }
+
+    /**
+     * A daemon bound to a tiny heap must answer rather than hang. The request either returns with
+     * the out-of-memory report or the connection drops; the test fails only if it blocks, and a
+     * fresh daemon with a normal heap must serve the project afterwards. Opt-in because it is slow.
+     */
+    private static void daemonOomTests() throws Exception {
+        if (!"1".equals(System.getenv("JCHECK_TEST_PLUGINS"))) {
+            return;
+        }
+        Path root = Files.createTempDirectory("jcheck-daemon-oom-");
+        Path src = root.resolve("src/main/java/demo");
+        Files.createDirectories(src);
+        StringBuilder big = new StringBuilder("package demo;\npublic final class Big {\n");
+        for (int i = 0; i < 20_000; i++) {
+            big.append("    int m").append(i).append("() { return ").append(i).append("; }\n");
+        }
+        big.append("}\n");
+        Files.writeString(src.resolve("Big.java"), big.toString(), StandardCharsets.UTF_8);
+
+        boolean started;
+        try {
+            started = Daemon.spawn(root, 20_000, List.of("-Xmx48m"));
+        } catch (IOException | RuntimeException e) {
+            started = false;
+        }
+        if (!started) {
+            deleteRecursively(root);
+            return;
+        }
+        try {
+            CheckRequest req = new CheckRequest();
+            req.root = root.toString();
+            req.format = "human";
+            Thread worker = new Thread(() -> {
+                try {
+                    DaemonClient.check(root.toString(), req);
+                } catch (IOException ignored) {
+                    // the daemon may drop the connection; that is a return, not a hang
+                }
+            }, "jcheck-oom-probe");
+            worker.setDaemon(true);
+            worker.start();
+            worker.join(120_000);
+            boolean returned = !worker.isAlive();
+            if (!returned) {
+                killDaemon(root);
+            }
+            check("daemon:oom-request-returns", returned, "the daemon hung for 120s");
+        } finally {
+            DaemonClient.shutdown(root.toString());
+            killDaemon(root);
+        }
+
+        boolean restarted = Daemon.spawn(root, 20_000);
+        check("daemon:recovers-after-oom", restarted && DaemonClient.ping(root.toString()),
+            "no daemon came up after the constrained one");
+        DaemonClient.shutdown(root.toString());
+        killDaemon(root);
+        deleteRecursively(root);
+    }
+
+    /** Force-kills a daemon that did not answer, using the pid file it leaves behind. */
+    private static void killDaemon(Path root) {
+        try {
+            Path pid = Daemon.pidPath(root.toString());
+            if (Files.isRegularFile(pid)) {
+                long handle = Long.parseLong(Files.readString(pid).strip());
+                ProcessHandle.of(handle).ifPresent(ProcessHandle::destroyForcibly);
+            }
+        } catch (IOException | RuntimeException ignored) {
+            // nothing to kill
+        }
     }
 
     // ---- incremental planning ----------------------------------------------
@@ -657,7 +829,7 @@ final class UnitTests {
         CheckRequest fxReq = new CheckRequest();
         fxReq.root = fx.toString();
         fxReq.errorProne = true;
-        CheckCommand.Outcome fxOut = FixCommand.run(fxReq, false, true);
+        CheckCommand.Outcome fxOut = FixCommand.run(fxReq, false, true, false);
         String patched = Files.readString(fxSrc.resolve("Fx.java"), StandardCharsets.UTF_8);
         check("plugins:fix-error-prone-patch", patched.contains("Objects.equals"), patched);
         eq("plugins:fix-clean-after-patch", 0, fxOut.exitCode);
@@ -686,6 +858,37 @@ final class UnitTests {
         CheckCommand.Outcome jcOut = JcstressCommand.run(jcReq);
         contains("plugins:jcstress-failure", jcOut.stdout, "J1201");
         deleteRecursively(jc);
+
+        Path rw = Files.createTempDirectory("jcheck-rewrite-it-");
+        Path rwSrc = rw.resolve("src/main/java/demo");
+        Files.createDirectories(rwSrc);
+        Files.writeString(rwSrc.resolve("Greeter.java"),
+            "package demo;\n"
+            + "interface Greeter {\n"
+            + "    String greet(String n);\n"
+            + "}\n", StandardCharsets.UTF_8);
+        Files.writeString(rwSrc.resolve("GreeterImpl.java"),
+            "package demo;\n"
+            + "public final class GreeterImpl implements Greeter {\n"
+            + "    public String greet(String n) {\n"
+            + "        return \"hi \" + n;\n"
+            + "    }\n"
+            + "    static int twice(int x) {\n"
+            + "        int y = x * 2;\n"
+            + "        return y;\n"
+            + "    }\n"
+            + "}\n", StandardCharsets.UTF_8);
+        CheckRequest rwReq = new CheckRequest();
+        rwReq.root = rw.toString();
+        // Disable the built-in pack so OpenRewrite is provably the thing that edits the file.
+        Files.writeString(rw.resolve("jcheck.toml"), "[errorprone]\ncustom_pack = false\n",
+            StandardCharsets.UTF_8);
+        CheckCommand.Outcome rwOut = FixCommand.run(rwReq, false, false, true);
+        String rewritten = Files.readString(rwSrc.resolve("GreeterImpl.java"), StandardCharsets.UTF_8);
+        check("plugins:rewrite-override", rewritten.contains("@Override"), rewritten);
+        check("plugins:rewrite-final-local", rewritten.contains("final int y"), rewritten);
+        eq("plugins:rewrite-clean", 0, rwOut.exitCode);
+        deleteRecursively(rw);
 
         junitHarnessIntegrationTest();
     }

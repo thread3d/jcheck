@@ -92,6 +92,12 @@ public final class Daemon {
                         break;
                     }
                     // a dropped connection must not kill the daemon
+                } catch (OutOfMemoryError oom) {
+                    log(logPath(rootPath), "out of memory in the accept loop; restarting");
+                    break;
+                } catch (Throwable t) {
+                    // A malformed frame or a check that throws must not take the daemon down.
+                    log(logPath(rootPath), "request failed: " + t);
                 }
             }
         } finally {
@@ -119,9 +125,26 @@ public final class Daemon {
                 return false;
             case Protocol.OP_CHECK:
                 CheckRequest req = readRequest(in, root);
-                CheckCommand.Outcome outcome = CheckCommand.run(req);
-                writeResponse(out, outcome.exitCode, outcome.stdout, outcome.stderr);
-                return true;
+                try {
+                    CheckCommand.Outcome outcome = CheckCommand.run(req);
+                    writeResponse(out, outcome.exitCode, outcome.stdout, outcome.stderr);
+                    return true;
+                } catch (OutOfMemoryError oom) {
+                    /*
+                     * A JVM that has run out of memory is not trustworthy: the honest recovery is
+                     * to report it, stop serving, and let the client start a fresh daemon (or fall
+                     * back in-process). Hanging on a half-dead JVM is the one outcome the spec
+                     * forbids.
+                     */
+                    log(logPath(root), "out of memory handling a check; restarting");
+                    writeResponse(out, 2, "",
+                        "jcheck: the daemon ran out of memory; it will restart on the next request\n");
+                    return false;
+                } catch (Throwable t) {
+                    log(logPath(root), "check failed: " + t);
+                    writeResponse(out, 2, "", "jcheck: daemon request failed: " + t + "\n");
+                    return true;
+                }
             default:
                 writeResponse(out, 2, "", "jcheck: unknown daemon opcode " + op + "\n");
                 return true;
@@ -189,14 +212,27 @@ public final class Daemon {
 
     /** Spawns a detached daemon JVM and waits for its socket to accept connections. */
     public static boolean spawn(Path root, long timeoutMillis) throws IOException {
+        return spawn(root, timeoutMillis, List.of());
+    }
+
+    /** As {@link #spawn(Path, long)}, with extra JVM arguments (used to bind the heap in tests). */
+    public static boolean spawn(Path root, long timeoutMillis, List<String> jvmArgs) throws IOException {
         String rootPath = root.toAbsolutePath().normalize().toString();
         Path java = Path.of(System.getProperty("java.home"), "bin", "java");
         String classpath = System.getProperty("java.class.path");
         Files.createDirectories(runtimeDir());
         Path log = logPath(rootPath);
-        ProcessBuilder pb = new ProcessBuilder(
-            java.toString(), "-cp", classpath, "jcheck.cli.Main",
-            "daemon", "run", "--root", rootPath);
+        List<String> command = new ArrayList<>();
+        command.add(java.toString());
+        command.addAll(jvmArgs);
+        command.add("-cp");
+        command.add(classpath);
+        command.add("jcheck.cli.Main");
+        command.add("daemon");
+        command.add("run");
+        command.add("--root");
+        command.add(rootPath);
+        ProcessBuilder pb = new ProcessBuilder(command);
         pb.redirectOutput(ProcessBuilder.Redirect.appendTo(log.toFile()));
         pb.redirectError(ProcessBuilder.Redirect.appendTo(log.toFile()));
         pb.redirectInput(ProcessBuilder.Redirect.from(Path.of("/dev/null").toFile()));

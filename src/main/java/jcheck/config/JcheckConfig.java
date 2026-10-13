@@ -92,6 +92,17 @@ public final class JcheckConfig {
     public Map<String, String> lintOverrides = Map.of();
     /** Path to a JUnit Platform Console Launcher jar, for {@code jcheck test}. */
     public String consoleLauncher;
+    /** OpenRewrite recipe support for {@code jcheck fix}. */
+    public boolean rewrite = false;
+    /** rewrite-static-analysis version whose transitive rewrite-java sets the runner version. */
+    public String rewriteVersion = "2.41.1";
+    /** Include rewrite-kotlin on the runner classpath; the static-analysis recipes need it. */
+    public boolean rewriteKotlin = true;
+    /** Recipes to activate; defaults are the ones the spec names. */
+    public List<String> rewriteRecipes = List.of(
+        "org.openrewrite.staticanalysis.MissingOverrideAnnotation",
+        "org.openrewrite.staticanalysis.FinalizeLocalVariables",
+        "org.openrewrite.staticanalysis.UseTryWithResources");
     /** Fixed report location used by {@code jcheck test}. */
     public String reportDir;
     /** Where this config was loaded from, or null when defaults are in use. */
@@ -194,6 +205,12 @@ public final class JcheckConfig {
         Map<String, Object> llm = Toml.table(root, "llm");
         c.llmMaxDiagnostics = Toml.integer(llm, "max_diagnostics", c.llmMaxDiagnostics);
         c.llmContextLines = Toml.integer(llm, "context_lines", c.llmContextLines);
+
+        Map<String, Object> fix = Toml.table(root, "fix");
+        c.rewrite = Toml.bool(fix, "rewrite", c.rewrite);
+        c.rewriteVersion = Toml.str(fix, "rewrite_version", c.rewriteVersion);
+        c.rewriteKotlin = Toml.bool(fix, "rewrite_kotlin", c.rewriteKotlin);
+        c.rewriteRecipes = Toml.strList(fix, "rewrite_recipes", c.rewriteRecipes);
 
         Map<String, Object> lintTable = Toml.table(root, "lints");
         Map<String, String> overrides = new LinkedHashMap<>();
