@@ -1,0 +1,10 @@
+warning[J1301]: `greet` overrides a supertype method but has no @Override
+  --> src/main/java/demo/GreeterImpl.java:9:5
+ 9 |     public String greet(String name) {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing @Override
+   = help: add @Override so a signature change fails to compile
+   = suggestion: add @Override [MachineApplicable]
+   = source: jcheck (AddOverride)
+
+analysis reached T3 of 5; T4-T5 skipped (not enabled)
+jcheck: 0 errors, 1 warning.

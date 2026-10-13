@@ -79,6 +79,10 @@ public final class DependencyResolver {
             List<String> command = List.of(executable.toString(), "-q", "--console=plain",
                 "-I", initScript.toString(), "jcheckClasspath");
             ProcessBuilder pb = new ProcessBuilder(command).directory(root.toFile());
+            String gradleHome = System.getenv("JCHECK_GRADLE_HOME");
+            if (gradleHome != null && !gradleHome.isBlank()) {
+                pb.environment().put("GRADLE_USER_HOME", gradleHome);
+            }
             pb.redirectErrorStream(true);
             Process process = pb.start();
             String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
@@ -171,10 +175,14 @@ public final class DependencyResolver {
         try {
             out = Files.createTempFile("jcheck-maven-", ".cp");
             Files.deleteIfExists(out);
-            List<String> command = List.of(executable.toString(), "-q",
+            List<String> command = new ArrayList<>(List.of(executable.toString(), "-q",
                 "dependency:build-classpath",
                 "-Dmdep.outputFile=" + out,
-                "-Dmdep.includeScope=test");
+                "-Dmdep.includeScope=test"));
+            String mavenRepo = System.getenv("JCHECK_MAVEN_REPO");
+            if (mavenRepo != null && !mavenRepo.isBlank()) {
+                command.add("-Dmaven.repo.local=" + mavenRepo);
+            }
             ProcessBuilder pb = new ProcessBuilder(command).directory(root.toFile());
             pb.redirectErrorStream(true);
             Process process = pb.start();

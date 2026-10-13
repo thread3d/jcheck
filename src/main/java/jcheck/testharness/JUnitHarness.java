@@ -152,6 +152,12 @@ public final class JUnitHarness {
         }
     }
 
+    /** The JUnit Platform Console Launcher, from jcheck.toml or resolved; empty when unavailable. */
+    public static List<Path> resolveLauncher(Path root, JcheckConfig config, List<String> notes) {
+        Path jar = launcherJar(root, config, notes);
+        return jar == null ? List.of() : List.of(jar);
+    }
+
     private static Path launcherJar(Path root, JcheckConfig config, List<String> notes) {
         if (config.consoleLauncher != null && !config.consoleLauncher.isBlank()) {
             Path p = Path.of(config.consoleLauncher);

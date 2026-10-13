@@ -65,6 +65,12 @@ public final class JcheckConfig {
     public String threadLeaks = "fail";
     public String fdLeaks = "fail";
     public boolean mutationTesting = false;
+    /** PIT version to resolve when mutation testing is enabled. */
+    public String mutationVersion = "1.15.8";
+    /** PIT JUnit 5 plugin version. */
+    public String mutationPluginVersion = "1.2.1";
+    /** PIT worker threads; 0 means half the available processors. */
+    public int mutationThreads = 0;
     /** {@code delegate} (ask the build tool) or {@code console} (run the launcher with jcheck-junit). */
     public String testLauncher = "delegate";
     /** Randomize test method order and print the seed for reproducibility. */
@@ -159,6 +165,9 @@ public final class JcheckConfig {
         c.threadLeaks = Toml.str(tests, "thread_leaks", c.threadLeaks);
         c.fdLeaks = Toml.str(tests, "fd_leaks", c.fdLeaks);
         c.mutationTesting = Toml.bool(tests, "mutation_testing", c.mutationTesting);
+        c.mutationVersion = Toml.str(tests, "mutation_version", c.mutationVersion);
+        c.mutationPluginVersion = Toml.str(tests, "mutation_plugin_version", c.mutationPluginVersion);
+        c.mutationThreads = Toml.integer(tests, "mutation_threads", c.mutationThreads);
         c.testLauncher = Toml.str(tests, "launcher", c.testLauncher);
         c.randomTestOrder = Toml.bool(tests, "random_order", c.randomTestOrder);
         c.consoleLauncher = Toml.str(tests, "console_launcher", null);

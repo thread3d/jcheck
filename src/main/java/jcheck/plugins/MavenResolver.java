@@ -41,24 +41,30 @@ import org.w3c.dom.NodeList;
  */
 public final class MavenResolver {
 
-    /** A group:artifact:version coordinate. */
+    /** A group:artifact:version[:classifier] coordinate. */
     public static final class Gav {
         public final String group;
         public final String artifact;
         public final String version;
+        public final String classifier;
 
         public Gav(String group, String artifact, String version) {
+            this(group, artifact, version, "");
+        }
+
+        public Gav(String group, String artifact, String version, String classifier) {
             this.group = group;
             this.artifact = artifact;
             this.version = version;
+            this.classifier = classifier == null ? "" : classifier;
         }
 
         public static Gav parse(String s) {
             String[] parts = s.trim().split(":");
-            if (parts.length != 3 || parts[0].isEmpty() || parts[1].isEmpty() || parts[2].isEmpty()) {
-                throw new IllegalArgumentException("expected group:artifact:version, got '" + s + "'");
+            if (parts.length < 3 || parts[0].isEmpty() || parts[1].isEmpty() || parts[2].isEmpty()) {
+                throw new IllegalArgumentException("expected group:artifact:version[:classifier], got '" + s + "'");
             }
-            return new Gav(parts[0], parts[1], parts[2]);
+            return new Gav(parts[0], parts[1], parts[2], parts.length > 3 ? parts[3] : "");
         }
 
         String key() {
@@ -67,7 +73,7 @@ public final class MavenResolver {
 
         @Override
         public String toString() {
-            return key() + ":" + version;
+            return key() + ":" + version + (classifier.isEmpty() ? "" : ":" + classifier);
         }
     }
 
@@ -190,7 +196,7 @@ public final class MavenResolver {
                 // A few artifacts (SpotBugs among them) declare pom packaging but publish the jar
                 // a caller explicitly asked for, so a root coordinate always gets a jar attempt.
                 if (!"pom".equals(raw.packaging) || roots.contains(gav.toString())) {
-                    Path jar = artifact(gav, "jar", null, false);
+                    Path jar = artifact(gav, "jar", gav.classifier, false);
                     if (jar != null) {
                         jars.add(jar);
                     } else if (!"pom".equals(raw.packaging)) {
@@ -208,7 +214,7 @@ public final class MavenResolver {
                         notes.add("no version for " + group + ":" + artifact + " (from " + gav + "); skipped");
                         continue;
                     }
-                    queue.add(new Gav(group, artifact, version));
+                    queue.add(new Gav(group, artifact, version, d.classifier));
                 }
             } catch (RuntimeException e) {
                 // A missing POM or jar in the transitive graph (often a test-only artifact with no

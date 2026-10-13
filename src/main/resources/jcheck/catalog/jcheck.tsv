@@ -11,6 +11,8 @@ jcheck	LocalCanBeFinal	J0706	3	local variable {0} can be final	can be final	can-
 jcheck	UnclosedResource	J0801	3	resource {0} is not closed on all paths	unclosed resource	unclosed-resource	use try-with-resources	docs/J0801.md
 jcheck	TodoMarker	J0902	3	unfinished marker {0} in shipped code	unfinished code	todo-marker	implement the code or link a tracked issue	docs/J0902.md
 jcheck	UnclosedExecutorOrThread	J1001	3	executor or thread {0} has no visible shutdown	no shutdown path	unclosed-executor	call shutdown() or shutdownNow() in a finally block, or use try-with-resources	docs/J1001.md
+jcheck	AddOverride	J1301	3	method {0} overrides a supertype method but has no @Override	missing @Override	missing-override	add @Override so a signature change fails to compile	docs/J1301.md
 jcheck	TestFailure	J0901	5	test failed	test failure		junit reports a failing test|run `jcheck test` locally to reproduce|check whether the test asserts something real	docs/J0901.md
 junit	junit.failure	J0901	5	test failed	test failure		junit reports a failing test|run `jcheck test` locally to reproduce|check whether the test asserts something real	docs/J0901.md
 junit	junit.error	J0901	5	test errored	test error		junit reports a test that threw|run `jcheck test` locally to reproduce	docs/J0901.md
+jcheck	MutantSurvived	J1101	5	mutant survived: {0}	surviving mutant	mutation-survived	strengthen the test so its result depends on this logic, or delete the code if no test needs it	docs/J1101.md

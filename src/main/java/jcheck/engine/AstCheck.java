@@ -545,6 +545,19 @@ abstract class AstCheck extends TreePathScanner<Void, Void> {
         return b;
     }
 
+    /** The leading whitespace of the line a span starts on, for indented insertions. */
+    final String lineIndent(Span span) {
+        if (span == null) {
+            return "";
+        }
+        String line = ctx.spans.textFor(file(), ctx.cu.getSourceFile()).line(span.lineStart());
+        int i = 0;
+        while (i < line.length() && (line.charAt(i) == ' ' || line.charAt(i) == '\t')) {
+            i++;
+        }
+        return line.substring(0, i);
+    }
+
     final void emit(Diagnostic.Builder b) {
         ctx.sink.add(b.build());
     }

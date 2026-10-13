@@ -233,6 +233,7 @@ public final class Initializer {
             + "thread_leaks     = \"fail\"\n"
             + "fd_leaks         = \"fail\"\n"
             + "mutation_testing = false\n"
+            + "mutation_version = \"1.15.8\"     # PIT, resolved when mutation_testing is on\n"
             + "launcher         = \"delegate\"   # or \"console\" for jcheck-junit\n"
             + "random_order     = false\n"
             + "\n"

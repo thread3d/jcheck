@@ -1,5 +1,7 @@
 package jcheck.tests;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -39,6 +41,7 @@ import jcheck.engine.TierAssign;
 import jcheck.explain.Explainer;
 import jcheck.fix.FixApplier;
 import jcheck.init.Initializer;
+import jcheck.lsp.LspServer;
 import jcheck.model.Applicability;
 import jcheck.model.CheckReport;
 import jcheck.model.Diagnostic;
@@ -56,6 +59,7 @@ import jcheck.render.RenderOptions;
 import jcheck.render.Renderers;
 import jcheck.render.SarifRenderer;
 import jcheck.testharness.JUnitXmlParser;
+import jcheck.util.JsonWriter;
 
 import static jcheck.tests.TestMain.check;
 import static jcheck.tests.TestMain.contains;
@@ -90,6 +94,7 @@ final class UnitTests {
         mavenResolverTests();
         suggestionRoundTripTests();
         daemonTests();
+        lspTests();
         errorProneIntegrationTests();
     }
 
@@ -195,6 +200,56 @@ final class UnitTests {
                 "daemon did not shut down");
             deleteRecursively(root);
         }
+    }
+
+    // ---- LSP bridge --------------------------------------------------------
+
+    /** Frames an initialize/didOpen/codeAction/shutdown session and checks the responses. */
+    private static void lspTests() throws Exception {
+        Path root = Files.createTempDirectory("jcheck-lsp-");
+        Path src = root.resolve("src/main/java/demo");
+        Files.createDirectories(src);
+        Path file = src.resolve("L.java");
+        Files.writeString(file,
+            "package demo;\n"
+            + "public final class L {\n"
+            + "    static int twice(int x) {\n"
+            + "        int y = x * 2;\n"
+            + "        return y;\n"
+            + "    }\n"
+            + "}\n", StandardCharsets.UTF_8);
+        String uri = file.toUri().toString();
+
+        ByteArrayOutputStream messages = new ByteArrayOutputStream();
+        frame(messages, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{"
+            + "\"rootUri\":" + JsonWriter.quote(root.toUri().toString()) + "}}");
+        frame(messages, "{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":{}}");
+        frame(messages, "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{"
+            + "\"textDocument\":{\"uri\":" + JsonWriter.quote(uri) + ",\"languageId\":\"java\""
+            + ",\"version\":1,\"text\":\"\"}}}");
+        frame(messages, "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/codeAction\","
+            + "\"params\":{\"textDocument\":{\"uri\":" + JsonWriter.quote(uri) + "},"
+            + "\"range\":{\"start\":{\"line\":0,\"character\":0},\"end\":{\"line\":0,\"character\":0}},"
+            + "\"context\":{\"diagnostics\":[]}}}");
+        frame(messages, "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"shutdown\"}");
+        frame(messages, "{\"jsonrpc\":\"2.0\",\"method\":\"exit\"}");
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        LspServer.serve(root, new ByteArrayInputStream(messages.toByteArray()), out);
+        String response = out.toString(StandardCharsets.UTF_8);
+        contains("lsp:initialize-capabilities", response, "\"codeActionProvider\":true");
+        contains("lsp:publish-diagnostics", response, "textDocument/publishDiagnostics");
+        contains("lsp:diagnostic-code", response, "\"code\":\"J0706\"");
+        contains("lsp:quickfix-edit", response, "\"newText\":\"final \"");
+        contains("lsp:shutdown-response", response, "\"id\":3");
+        deleteRecursively(root);
+    }
+
+    private static void frame(ByteArrayOutputStream out, String json) throws IOException {
+        byte[] body = json.getBytes(StandardCharsets.UTF_8);
+        out.write(("Content-Length: " + body.length + "\r\n\r\n")
+            .getBytes(StandardCharsets.US_ASCII));
+        out.write(body);
     }
 
     // ---- dependency resolution ---------------------------------------------

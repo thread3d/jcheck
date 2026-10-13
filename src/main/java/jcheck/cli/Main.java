@@ -11,6 +11,7 @@ import jcheck.daemon.Daemon;
 import jcheck.daemon.DaemonClient;
 import jcheck.explain.Explainer;
 import jcheck.init.Initializer;
+import jcheck.lsp.LspServer;
 import jcheck.mcp.McpServer;
 
 /** jcheck's single entry point. */
@@ -70,6 +71,10 @@ public final class Main {
                 return runDaemon(rest);
             case "mcp":
                 return runMcp(rest);
+            case "lsp":
+                return runLsp(rest);
+            case "mutate":
+                return emit(runMutate(rest));
             default:
                 System.err.println("jcheck: unknown command '" + command + "'");
                 System.err.print(usage());
@@ -321,7 +326,25 @@ public final class Main {
         return McpServer.serveStdio(root, pollMillis);
     }
 
+    /**
+     * {@code jcheck mutate}: PIT mutation testing, scoped with {@code --sources} when given.
+     */
+    static CheckCommand.Outcome runMutate(String[] rest) {
+        Args a = Args.parse(rest, VALUE_FLAGS);
+        return MutateCommand.run(buildRequest(a));
+    }
+
     // ---- helpers ----------------------------------------------------------
+
+    /**
+     * {@code jcheck lsp}: a Language Server Protocol bridge on stdio, so an editor gets diagnostics
+     * and quick fixes from the same analysis. Like {@code jcheck mcp}, it owns stdin/stdout.
+     */
+    static int runLsp(String[] rest) {
+        Args a = Args.parse(rest, VALUE_FLAGS);
+        Path root = Path.of(a.get("root", ".")).toAbsolutePath().normalize();
+        return LspServer.serveStdio(root);
+    }
 
     static CheckCommand.Outcome runProcess(List<String> cmd, Path dir, String label) {
         try {
@@ -391,6 +414,8 @@ public final class Main {
             "  init      writes jcheck.toml, optional package stubs and agent instructions",
             "  daemon    start | stop | status | run",
             "  mcp       resources-only MCP server on stdio (for MCP-capable agent hosts)",
+            "  lsp       Language Server Protocol bridge on stdio (for editors)",
+            "  mutate    PIT mutation testing; surviving mutants become diagnostics",
             "  version   prints the version",
             "",
             "flags:",

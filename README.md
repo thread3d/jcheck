@@ -33,6 +33,8 @@ Requires a JDK and nothing else — no Gradle, no Maven, no network.
 | `jcheck init` | Writes `jcheck.toml`; `--agent` adds the agent instructions snippet. |
 | `jcheck daemon start\|stop\|status\|run` | Warm daemon over a Unix domain socket. |
 | `jcheck mcp` | Resources-only MCP server on stdio, for MCP-capable agent hosts. |
+| `jcheck lsp` | Language Server Protocol bridge on stdio: diagnostics and quick fixes while you edit. |
+| `jcheck mutate` | PIT mutation testing; surviving mutants become diagnostics. Scope with `--sources`. |
 
 Formats: `--message-format=human|json|llm|sarif`.
 Exit codes: `0` clean (warnings allowed unless `--deny-warnings`), `1` diagnostics at error
@@ -126,7 +128,7 @@ alone, because tools word the same problem differently. Diagnostics that are the
 only when code, file, line, *and detail lines* match — javac reports one missing type twice, and
 merging on the message alone would have collapsed two genuinely different unresolved names.
 
-**Catalog entries are data.** 185 rows in TSV resources map `(source, source_key)` to a stable
+**Catalog entries are data.** 186 rows in TSV resources map `(source, source_key)` to a stable
 code, tier, curated headline and help lines. Unmapped keys are never dropped: they get a stable
 `J9xxx` code derived from an FNV-1a hash of the key, and are flagged as needing curation.
 
@@ -172,6 +174,12 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   exception capture, and optional randomized order with the seed printed. The extension source
   ships with jcheck and is compiled against the project's own JUnit Platform at test time, so
   jcheck carries no JUnit dependency and the extension always matches the platform version.
+- **LSP bridge** — `jcheck lsp` speaks the Language Server Protocol on stdio from the same warm
+  analysis the MCP server uses: diagnostics are published on open/change/save and
+  `textDocument/codeAction` returns the machine-applicable suggestions as quick fixes.
+- **Mutation testing (T5)** — `jcheck mutate` runs PIT, scoped with `--sources`, and reports each
+  survivor (`J1101`) at its line. The project's JUnit Platform is placed ahead of PIT's own so a
+  version clash cannot silently break discovery.
 - **Daemon** — length-prefixed binary protocol over a Unix domain socket, keyed by a hash of the
   project root so serving a project never writes into it. `jcheck check` uses a running daemon
   automatically and falls back in-process.
@@ -200,7 +208,9 @@ overstate itself:
   under the jcheck cache directory and keyed by a fingerprint of the build files, so a warm daemon
   does not pay twice. When the tool is absent or the resolution fails, the heuristic classpath is
   kept and the limitation is stated on every run where it applies.
-- **No incremental dependents graph, PIT, JaCoCo, jcstress/Lincheck, Infer, or LSP bridge.**
+- **No incremental dependents graph, JaCoCo coverage, jcstress hook, or Infer integration yet.**
+  Lincheck-style tests run as ordinary JUnit tests under `jcheck test --launcher`, so they are
+  covered without a separate hook.
 - **`jcheck fix` does not run OpenRewrite recipes.** It applies the diagnostic model's
   machine-applicable suggestions and, with `--error-prone`, Error Prone's own patch mode
   (`-XepPatchChecks` / `-XepPatchLocation:IN_PLACE`); the sources are snapshotted first and every

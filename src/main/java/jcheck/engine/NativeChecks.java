@@ -30,10 +30,10 @@ public final class NativeChecks {
      */
     public static final List<String> IMPLEMENTED_CHECK_CODES = List.of(
         "J0003", "J0301", "J0302", "J0601", "J0602", "J0603", "J0701", "J0705", "J0706",
-        "J0801", "J0902", "J1001");
+        "J0801", "J0902", "J1001", "J1301");
 
     /** jcheck codes emitted outside the compile path, by the test harness. */
-    public static final List<String> IMPLEMENTED_HARNESS_CODES = List.of("J0901");
+    public static final List<String> IMPLEMENTED_HARNESS_CODES = List.of("J0901", "J1101");
 
     /** Every jcheck code this build can actually emit, from either path. */
     public static final List<String> IMPLEMENTED_CODES = combined();
@@ -81,6 +81,7 @@ public final class NativeChecks {
             new LocalCanBeFinalCheck(ctx),
             new UnclosedResourceCheck(ctx),
             new TodoMarkerCheck(ctx),
-            new UnclosedExecutorOrThreadCheck(ctx));
+            new UnclosedExecutorOrThreadCheck(ctx),
+            new AddOverrideCheck(ctx));
     }
 }
