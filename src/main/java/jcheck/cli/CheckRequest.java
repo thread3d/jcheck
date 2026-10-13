@@ -20,6 +20,10 @@ public final class CheckRequest {
     public List<String> allow = new ArrayList<>();
     public boolean denyWarnings;
     public boolean reportSuppressions;
+    /** Force Error Prone/NullAway on for this run even when jcheck.toml does not enable them. */
+    public boolean errorProne;
+    /** Never reach the network for plugin jars on this run. */
+    public boolean pluginOffline;
     public List<Path> sources = new ArrayList<>();
     public List<Path> classpath = new ArrayList<>();
     public Integer release;

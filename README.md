@@ -150,6 +150,11 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   `J0705 MutableStaticState`, `J0706 LocalCanBeFinal`, `J0801 UnclosedResource`,
   `J0902 TodoMarker` and `J1001 UnclosedExecutorOrThread`. `J0706`, `J0302` and `J0301` carry
   machine-applicable fixes.
+- **Error Prone and NullAway (T3)** — attached when `[errorprone] enabled = true`. Their jars are
+  resolved from Maven Central on first use and cached under `~/.cache/jcheck/maven`; an explicit
+  `classpath` list, a `file:` repository, or `--offline` avoids the network. Both need
+  `--add-exports` on the JVM running javac, so they run in a forked JVM and report through the same
+  diagnostic model and catalog (`J04xx` Error Prone, `J05xx` NullAway) as everything else.
 - **Daemon** — length-prefixed binary protocol over a Unix domain socket, keyed by a hash of the
   project root so serving a project never writes into it. `jcheck check` uses a running daemon
   automatically and falls back in-process.
@@ -157,8 +162,10 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   per-session process and source-change subscriptions. See [MCP interface](#mcp-interface).
 - **`init`, `fix`, `explain`, `fmt`, `build`, `test`** — including a JUnit XML parser that lifts
   project stack frames above framework frames.
-- **Tests** — 1182 assertions: unit tests plus 21 rustc-style UI golden cases under
-  `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output.
+- **Tests** — 1186+ assertions: unit tests plus 21 rustc-style UI golden cases under
+  `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output. Set
+  `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end Error Prone/NullAway case, which needs analyzer
+  jars.
 - **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
   (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
   `Todo()`/`Unreachable()`/`Unimplemented()` markers behind J0902, and a sealed `Result` type.
@@ -169,11 +176,6 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
 Stated plainly, because a tool whose whole premise is "a clean check means something" must not
 overstate itself:
 
-- **Error Prone and NullAway are not attached.** The plugin seam exists (`-Xprocessorpath`,
-  `-proc` handling, catalog rows and J-code mappings for both), but no plugin jars are resolved,
-  so T3 runs the built-in jcheck pack only. `JcheckConfig.errorProne` defaults to `false` for
-  exactly this reason, and enabling it emits a note. No NullAway or Error Prone diagnostic has
-  been observed by this implementation.
 - **Gradle Tooling API / Maven resolution** is not driven. The build tool is detected, and
   `jcheck build`/`test`/`fmt` delegate to it, but the dependency graph is not read, so third-party
   types can appear unresolved. jcheck says so on every run where that applies.
@@ -191,7 +193,9 @@ Built and tested on **JDK 20** because that is what is installed here; SPEC.md a
 25. JDK 20 lacks nothing jcheck itself needs (records, sealed types, switch expressions, Unix
 domain sockets), but the JDK-21 baseline in the spec matters for the *checked code*: pattern
 switch exhaustiveness and `-Xlint:this-escape` need 21+. UI goldens embed javac's own message
-wording, which is the reason SPEC.md lists a JDK matrix as a test dimension.
+wording, which is the reason SPEC.md lists a JDK matrix as a test dimension. The attached plugins
+are pinned to Error Prone **2.24.1** and NullAway **0.10.18** (with NullAway's `dataflow-nullaway`
+and JSpecify pulled in transitively), which are the versions verified against JDK 20 here.
 
 ## Layout
 
@@ -206,6 +210,7 @@ src/main/java/jcheck/
   cli/         commands
   daemon/      Unix-socket server and client
   mcp/         MCP resources-only server, resource providers, warm session state
+  plugins/     Maven resolver, forked plugin runner, Error Prone/NullAway integration
   fix/ init/ explain/ testharness/
 src/main/resources/jcheck/catalog/*.tsv   185 catalog rows
 support/java/jcheck/support/              jcheck-support annotations, Todo markers, Result

@@ -26,12 +26,23 @@ public final class JcheckConfig {
     public List<String> lint = List.of("all", "-processing", "-serial");
     public List<String> javacExtra = List.of();
     /**
-     * Whether Error Prone/NullAway are attached. False by default because the plugin jars are not
-     * wired up yet; claiming T3 for a tool that did not run would be exactly the kind of quiet
-     * false-clean the tier model exists to prevent.
+     * Whether Error Prone/NullAway are attached. False by default so a project that never asked
+     * for them is not surprised by a download; {@code jcheck init} enables them. When true, T3
+     * runs Error Prone and NullAway in a forked JVM with the module exports they need, alongside
+     * the built-in jcheck pack.
      */
     public boolean errorProne = false;
     public List<String> errorProneDisabled = List.of();
+    /** Error Prone version to resolve from Maven Central when no explicit classpath is given. */
+    public String errorProneVersion = "2.24.1";
+    /** NullAway version to resolve from Maven Central when no explicit classpath is given. */
+    public String nullawayVersion = "0.10.18";
+    /** Explicit analyzer jars; an empty list means "resolve from the repository". */
+    public List<String> pluginClasspath = List.of();
+    /** Never reach the network for plugin jars; a cache miss fails with a stated reason. */
+    public boolean pluginOffline = false;
+    /** Repository override for plugin resolution; blank means Maven Central. */
+    public String pluginRepo = "";
     public boolean customPack = true;
     public String nullnessMode = "nullaway-jspecify";
     public List<String> nullnessPackages = List.of();
@@ -93,6 +104,11 @@ public final class JcheckConfig {
         Map<String, Object> ep = Toml.table(root, "errorprone");
         c.errorProne = Toml.bool(ep, "enabled", c.errorProne);
         c.errorProneDisabled = Toml.strList(ep, "disabled", c.errorProneDisabled);
+        c.errorProneVersion = Toml.str(ep, "version", c.errorProneVersion);
+        c.nullawayVersion = Toml.str(ep, "nullaway_version", c.nullawayVersion);
+        c.pluginClasspath = Toml.strList(ep, "classpath", c.pluginClasspath);
+        c.pluginOffline = Toml.bool(ep, "offline", c.pluginOffline);
+        c.pluginRepo = Toml.str(ep, "repo", c.pluginRepo);
         c.customPack = Toml.bool(ep, "custom_pack", c.customPack);
 
         Map<String, Object> nullness = Toml.table(root, "nullness");

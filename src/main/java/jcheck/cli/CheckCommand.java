@@ -3,7 +3,9 @@ package jcheck.cli;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.stream.Stream;
 import jcheck.build.BuildModel;
 import jcheck.config.JcheckConfig;
@@ -11,6 +13,7 @@ import jcheck.engine.CheckOptions;
 import jcheck.engine.Engine;
 import jcheck.engine.LevelPolicy;
 import jcheck.model.CheckReport;
+import jcheck.plugins.PluginClasspath;
 import jcheck.render.RenderOptions;
 import jcheck.render.Renderer;
 import jcheck.render.Renderers;
@@ -152,6 +155,31 @@ public final class CheckCommand {
         String profile = req.profile != null ? req.profile : config.profile;
         LevelPolicy policy = config.levelPolicy(profile, req.denyWarnings, req.deny, req.warn, req.allow);
 
+        /*
+         * Resolve the analyzer jars before the first compile. NullAway needs JSpecify on the
+         * checked code's classpath, and a missing annotation jar would fail T1 and hide every T3
+         * finding — including the NullAway one the user enabled the plugin to see.
+         */
+        boolean errorProne = config.errorProne || req.errorProne;
+        List<Path> classpath = new ArrayList<>(model.classpath);
+        List<Path> pluginJars = List.of();
+        List<String> pluginNotes = new ArrayList<>();
+        if (errorProne) {
+            try {
+                PluginClasspath.Result plugins = PluginClasspath.resolve(
+                    config.errorProneVersion, config.nullawayVersion,
+                    config.nullnessMode != null && config.nullnessMode.startsWith("nullaway"),
+                    config.pluginClasspath, root,
+                    config.pluginOffline || req.pluginOffline, config.pluginRepo);
+                pluginJars = plugins.processorPath;
+                pluginNotes.addAll(plugins.notes);
+                classpath.addAll(plugins.compileExtra);
+            } catch (RuntimeException e) {
+                pluginNotes.add("Error Prone is enabled but its plugin jars could not be resolved: "
+                    + e.getMessage());
+            }
+        }
+
         CheckOptions.Builder ob = CheckOptions.builder()
             .rootDir(root.toString())
             .profile(profile)
@@ -161,16 +189,23 @@ public final class CheckCommand {
             .javacExtra(config.javacExtra)
             .scratchDir(scratch)
             .sources(model.sources)
-            .classpath(model.classpath)
+            .classpath(classpath)
             .processorPath(model.processorPath)
             .nativeChecks(config.customPack)
             .processAnnotations(!model.processorPath.isEmpty())
+            .errorProne(errorProne)
+            .errorProneVersion(config.errorProneVersion)
+            .nullawayVersion(config.nullawayVersion)
+            .pluginClasspath(config.pluginClasspath)
+            .pluginOffline(config.pluginOffline || req.pluginOffline)
+            .pluginRepo(config.pluginRepo)
+            .nullnessMode(config.nullnessMode)
+            .nullnessPackages(config.nullnessPackages)
+            .errorProneDisabled(config.errorProneDisabled)
+            .pluginJars(pluginJars)
+            .toolNotes(pluginNotes)
             .toolNotes(model.notes);
 
-        if (config.errorProne) {
-            ob.toolNote("error-prone/NullAway are enabled in jcheck.toml but no plugin jars were "
-                + "supplied; T3 ran the built-in jcheck pack only");
-        }
         if (config.spotbugs) {
             ob.toolNote("spotbugs is enabled in jcheck.toml but bytecode analysis is not wired up; T5 did not run");
         }

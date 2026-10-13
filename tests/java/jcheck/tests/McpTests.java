@@ -221,13 +221,13 @@ final class McpTests {
         McpServer server = newServer(state);
 
         String capabilities = readText(server, 10, McpResources.CAPABILITIES);
-        contains("res:capabilities-tier3-honest", capabilities, "Error Prone and NullAway plugin jars are not attached");
+        contains("res:capabilities-tier3-honest", capabilities, "Error Prone and NullAway are off");
         notContains("res:capabilities-no-gap", capabilities, "Catalogued but not implemented");
         check("res:capabilities-pack-complete",
             McpResources.cataloguedButUnimplemented(jcheck.catalog.Catalog.loadDefault()).isEmpty(),
             "every catalogued jcheck code should now have an implementation");
         contains("res:capabilities-lists-implemented", capabilities,
-            "the built-in jcheck pack runs: J0003");
+            "built-in jcheck pack: J0003");
         contains("res:capabilities-guarantee-section", capabilities, "Where the guarantee ends");
         notContains("res:capabilities-j0901-is-implemented", capabilities, "J0901 TestFailure");
         contains("res:capabilities-catalog-size", capabilities, "185 mapped codes");

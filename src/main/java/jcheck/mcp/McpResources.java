@@ -210,12 +210,21 @@ public final class McpResources {
         sb.append("| T0 syntax | runs | javac parse |\n");
         sb.append("| T1 symbols and types | runs | javac attribute |\n");
         sb.append("| T2 flow | runs | definite assignment, reachability, exhaustiveness |\n");
-        if (NativeChecks.IMPLEMENTED_CODES.isEmpty()) {
+        if (NativeChecks.IMPLEMENTED_CODES.isEmpty() && !config.errorProne) {
             sb.append("| T3 error-prone + nullaway + jcheck-checks | not available | nothing implemented |\n");
         } else {
-            sb.append("| T3 error-prone + nullaway + jcheck-checks | partial | the built-in jcheck pack runs: ")
-              .append(String.join(", ", NativeChecks.IMPLEMENTED_CHECK_CODES))
-              .append(". Error Prone and NullAway plugin jars are not attached. |\n");
+            sb.append("| T3 error-prone + nullaway + jcheck-checks | ")
+              .append(config.errorProne ? "runs" : "partial")
+              .append(" | built-in jcheck pack: ")
+              .append(String.join(", ", NativeChecks.IMPLEMENTED_CHECK_CODES));
+            if (config.errorProne) {
+                sb.append(". Error Prone and NullAway are enabled and run in a forked JVM "
+                    + "with the module exports they need");
+            } else {
+                sb.append(". Error Prone and NullAway are off; enable them in [errorprone] "
+                    + "to attach the plugins");
+            }
+            sb.append(" |\n");
         }
         sb.append("| T4 checker-framework | ")
           .append(config.anyCheckerConfigured() ? "configured but not wired up" : "not configured")

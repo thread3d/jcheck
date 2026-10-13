@@ -17,6 +17,7 @@ import jcheck.model.Span;
 import jcheck.model.Suggestion;
 import jcheck.model.Tier;
 import jcheck.model.TierReport;
+import jcheck.plugins.ErrorProneRunner;
 
 /**
  * The one place findings are merged: run the tiers, dedupe, drop cascades, apply the level
@@ -38,7 +39,7 @@ public final class Engine {
         if (opts.sources.isEmpty()) {
             configErrors.add("no Java sources found; pass --sources or configure the project source roots");
             return new CheckReport(List.of(), List.of(), List.of(),
-                tierReport(opts, false, Integer.MAX_VALUE), toolNotes, configErrors);
+                tierReport(opts, false, Integer.MAX_VALUE, false), toolNotes, configErrors);
         }
 
         JavacRunner.Result run = JavacRunner.run(opts, catalog);
@@ -75,6 +76,22 @@ public final class Engine {
             all = keep;
         }
 
+        /*
+         * Error Prone and NullAway run in a forked JVM with the module exports they need. They are
+         * only attempted when the compile got past flow analysis, because a plugin run over broken
+         * code would report noise; the tier line then says T3 did not run and why.
+         */
+        boolean t3Ran = false;
+        if (blockingTier > Tier.T2) {
+            t3Ran = opts.nativeChecks;
+            if (opts.errorProne) {
+                ErrorProneRunner.Result plugins = ErrorProneRunner.run(opts, catalog, new SpanResolver());
+                all.addAll(plugins.diagnostics);
+                toolNotes.addAll(plugins.notes);
+                t3Ran = t3Ran || plugins.ran;
+            }
+        }
+
         List<Diagnostic> ordered = new ArrayList<>(all);
         ordered.sort(Comparator.comparingInt(d -> d.seq));
 
@@ -101,7 +118,7 @@ public final class Engine {
             }
         }
 
-        TierReport tiers = tierReport(opts, anyErrors, blockingTier);
+        TierReport tiers = tierReport(opts, anyErrors, blockingTier, t3Ran);
         return new CheckReport(
             relativize(gated, opts.rootDir),
             relativize(dropped, opts.rootDir),
@@ -111,19 +128,24 @@ public final class Engine {
             configErrors);
     }
 
-    private static TierReport tierReport(CheckOptions opts, boolean anyErrors, int blockingTier) {
-        int highest = opts.highestEnabledTier();
-        int reached = blockingTier <= Tier.T2 ? Math.min(blockingTier, highest) : highest;
-
+    private static TierReport tierReport(CheckOptions opts, boolean anyErrors, int blockingTier,
+                                         boolean t3Ran) {
         List<TierReport.Entry> entries = new ArrayList<>();
         for (int t = 0; t <= Tier.MAX; t++) {
             boolean enabled = opts.tierEnabled(t);
-            boolean ran = enabled && t <= reached;
+            boolean ran;
             String note = "";
             if (!enabled) {
+                ran = false;
                 note = "not enabled";
-            } else if (!ran) {
+            } else if (blockingTier <= Tier.T2 && t > blockingTier) {
+                ran = false;
                 note = "compile errors";
+            } else if (t == Tier.T3 && !t3Ran) {
+                ran = false;
+                note = "plugin unavailable";
+            } else {
+                ran = true;
             }
             entries.add(new TierReport.Entry(t, ran, note));
         }

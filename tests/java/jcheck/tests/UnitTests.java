@@ -13,6 +13,7 @@ import java.util.TreeSet;
 import jcheck.build.BuildModel;
 import jcheck.catalog.Catalog;
 import jcheck.catalog.CatalogEntry;
+import jcheck.cli.CheckCommand;
 import jcheck.config.JcheckConfig;
 import jcheck.config.Toml;
 import jcheck.engine.CascadeFilter;
@@ -33,6 +34,7 @@ import jcheck.model.Span;
 import jcheck.model.Suggestion;
 import jcheck.model.Tier;
 import jcheck.model.TierReport;
+import jcheck.plugins.MavenResolver;
 import jcheck.render.HumanRenderer;
 import jcheck.render.JsonRenderer;
 import jcheck.render.LlmRenderer;
@@ -70,6 +72,116 @@ final class UnitTests {
         explainTests(repoRoot);
         initializerTests();
         buildModelTests();
+        mavenResolverTests();
+        errorProneIntegrationTests();
+    }
+
+    // ---- plugin resolution -------------------------------------------------
+
+    /**
+     * Exercises the resolver entirely offline against a fixture repository: parent properties,
+     * dependencyManagement, and test-scope exclusion are the three behaviours Error Prone's and
+     * NullAway's real POMs depend on.
+     */
+    private static void mavenResolverTests() throws Exception {
+        Path tmp = Files.createTempDirectory("jcheck-maven-test-");
+        Path repo = tmp.resolve("repo");
+
+        write(repo.resolve("com/example/parent/1.0/parent-1.0.pom"),
+            "<project><modelVersion>4.0.0</modelVersion>"
+            + "<groupId>com.example</groupId><artifactId>parent</artifactId><version>1.0</version>"
+            + "<packaging>pom</packaging>"
+            + "<properties><lib.version>2.0</lib.version></properties>"
+            + "<dependencyManagement><dependencies>"
+            + "<dependency><groupId>com.example</groupId><artifactId>c</artifactId>"
+            + "<version>${lib.version}</version></dependency>"
+            + "</dependencies></dependencyManagement></project>");
+
+        write(repo.resolve("com/example/a/1.0/a-1.0.pom"),
+            "<project><modelVersion>4.0.0</modelVersion>"
+            + "<parent><groupId>com.example</groupId><artifactId>parent</artifactId>"
+            + "<version>1.0</version></parent>"
+            + "<artifactId>a</artifactId>"
+            + "<dependencies>"
+            + "<dependency><groupId>com.example</groupId><artifactId>b</artifactId>"
+            + "<version>1.0</version><scope>test</scope></dependency>"
+            + "<dependency><groupId>com.example</groupId><artifactId>c</artifactId></dependency>"
+            + "</dependencies></project>");
+
+        write(repo.resolve("com/example/c/2.0/c-2.0.pom"),
+            "<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId>"
+            + "<artifactId>c</artifactId><version>2.0</version></project>");
+
+        write(repo.resolve("com/example/a/1.0/a-1.0.jar"), "");
+        write(repo.resolve("com/example/c/2.0/c-2.0.jar"), "");
+        write(repo.resolve("com/example/b/1.0/b-1.0.jar"), "");
+
+        MavenResolver resolver = new MavenResolver(tmp.resolve("cache"), List.of(repo.toUri()), true);
+        List<Path> jars = resolver.resolve(List.of("com.example:a:1.0"));
+        List<String> names = new ArrayList<>();
+        for (Path p : jars) {
+            names.add(p.getFileName().toString());
+        }
+        check("maven:transitive-count", names.size() == 2, "got " + names);
+        check("maven:root-included", names.contains("a-1.0.jar"), "got " + names);
+        check("maven:managed-version", names.contains("c-2.0.jar"), "got " + names);
+        check("maven:test-scope-excluded", !names.contains("b-1.0.jar"), "got " + names);
+        check("maven:returns-real-files", jars.stream().allMatch(Files::isRegularFile),
+            "a classpath entry must exist on disk");
+
+        MavenResolver missing = new MavenResolver(tmp.resolve("cache2"), List.of(repo.toUri()), true);
+        check("maven:missing-is-not-fatal",
+            missing.resolve(List.of("com.example:missing:1.0")).isEmpty() && !missing.notes().isEmpty(),
+            "a missing artifact should be a note, not an exception");
+
+        try {
+            MavenResolver.Gav.parse("not-a-coordinate");
+            check("maven:bad-coordinate-rejected", false, "expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            check("maven:bad-coordinate-rejected", true, null);
+        }
+    }
+
+    private static void write(Path file, String content) throws IOException {
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, content, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Opt-in end-to-end check for the forked Error Prone/NullAway run. The default suite must not
+     * download analyzer jars, so this only runs with {@code JCHECK_TEST_PLUGINS=1} set (and then
+     * expects either a warm cache or network access).
+     */
+    private static void errorProneIntegrationTests() throws Exception {
+        if (!"1".equals(System.getenv("JCHECK_TEST_PLUGINS"))) {
+            return;
+        }
+        Path tmp = Files.createTempDirectory("jcheck-errorprone-it-");
+        Path src = tmp.resolve("src/main/java/demo");
+        Files.createDirectories(src);
+        Files.writeString(src.resolve("Ref.java"),
+            "package demo;\n"
+            + "import org.jspecify.annotations.NullMarked;\n"
+            + "import org.jspecify.annotations.Nullable;\n"
+            + "@NullMarked\n"
+            + "public final class Ref {\n"
+            + "    int len(@Nullable String s) {\n"
+            + "        return s.length();\n"
+            + "    }\n"
+            + "    boolean same(String a, String b) {\n"
+            + "        return a == b;\n"
+            + "    }\n"
+            + "}\n", StandardCharsets.UTF_8);
+        Files.writeString(tmp.resolve("jcheck.toml"),
+            "[errorprone]\nenabled = true\n\n[nullness]\nmode = \"nullaway-jspecify\"\n",
+            StandardCharsets.UTF_8);
+
+        CheckCommand.Outcome out = TestMain.runCase(tmp, "check --profile standard");
+        contains("plugins:reference-equality", out.stdout, "J0430");
+        contains("plugins:nullaway-dereference", out.stdout, "J0503");
+        contains("plugins:source-nullaway", out.stdout, "source: nullaway");
+        contains("plugins:tier3", out.stdout, "analysis reached T3");
+        deleteRecursively(tmp);
     }
 
     // ---- catalog -----------------------------------------------------------

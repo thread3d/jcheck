@@ -30,6 +30,24 @@ public final class CheckOptions {
     public final boolean errorProne;
     public final boolean checkerFramework;
     public final boolean spotbugs;
+    /** Error Prone version to resolve when no explicit plugin classpath is configured. */
+    public final String errorProneVersion;
+    /** NullAway version to resolve when no explicit plugin classpath is configured. */
+    public final String nullawayVersion;
+    /** Explicit plugin jars; an empty list means "resolve from Maven Central". */
+    public final List<String> pluginClasspath;
+    /** Never reach the network; fail with a note when a plugin jar is not cached. */
+    public final boolean pluginOffline;
+    /** Repository override; blank means Maven Central. */
+    public final String pluginRepo;
+    /** {@code nullaway-jspecify} (default) or another mode; controls whether NullAway is attached. */
+    public final String nullnessMode;
+    /** Packages NullAway checks; empty means "only @NullMarked code". */
+    public final List<String> nullnessPackages;
+    /** Error Prone checks turned off for this project, by check name. */
+    public final List<String> errorProneDisabled;
+    /** Analyzer jars already resolved by the caller; empty means the plugin is unavailable. */
+    public final List<Path> pluginJars;
     /** Tool-level notes the caller wants rendered alongside the engine's own. */
     public final List<String> toolNotes;
 
@@ -53,7 +71,20 @@ public final class CheckOptions {
         this.errorProne = b.errorProne;
         this.checkerFramework = b.checkerFramework;
         this.spotbugs = b.spotbugs;
+        this.errorProneVersion = blank(b.errorProneVersion) ? "2.24.1" : b.errorProneVersion;
+        this.nullawayVersion = blank(b.nullawayVersion) ? "0.10.18" : b.nullawayVersion;
+        this.pluginClasspath = Collections.unmodifiableList(new ArrayList<>(b.pluginClasspath));
+        this.pluginOffline = b.pluginOffline;
+        this.pluginRepo = b.pluginRepo == null ? "" : b.pluginRepo;
+        this.nullnessMode = b.nullnessMode == null ? "nullaway-jspecify" : b.nullnessMode;
+        this.nullnessPackages = Collections.unmodifiableList(new ArrayList<>(b.nullnessPackages));
+        this.errorProneDisabled = Collections.unmodifiableList(new ArrayList<>(b.errorProneDisabled));
+        this.pluginJars = Collections.unmodifiableList(new ArrayList<>(b.pluginJars));
         this.toolNotes = Collections.unmodifiableList(new ArrayList<>(b.toolNotes));
+    }
+
+    private static boolean blank(String s) {
+        return s == null || s.isBlank();
     }
 
     /** Whether the given tier was configured to run in this invocation. */
@@ -107,6 +138,15 @@ public final class CheckOptions {
         private boolean errorProne;
         private boolean checkerFramework;
         private boolean spotbugs;
+        private String errorProneVersion;
+        private String nullawayVersion;
+        private final List<String> pluginClasspath = new ArrayList<>();
+        private boolean pluginOffline;
+        private String pluginRepo;
+        private String nullnessMode;
+        private final List<String> nullnessPackages = new ArrayList<>();
+        private final List<String> errorProneDisabled = new ArrayList<>();
+        private final List<Path> pluginJars = new ArrayList<>();
         private final List<String> toolNotes = new ArrayList<>();
 
         public Builder source(Path p) {
@@ -197,6 +237,55 @@ public final class CheckOptions {
 
         public Builder spotbugs(boolean v) {
             this.spotbugs = v;
+            return this;
+        }
+
+        public Builder errorProneVersion(String v) {
+            this.errorProneVersion = v;
+            return this;
+        }
+
+        public Builder nullawayVersion(String v) {
+            this.nullawayVersion = v;
+            return this;
+        }
+
+        public Builder pluginClasspath(List<String> v) {
+            this.pluginClasspath.clear();
+            this.pluginClasspath.addAll(v);
+            return this;
+        }
+
+        public Builder pluginOffline(boolean v) {
+            this.pluginOffline = v;
+            return this;
+        }
+
+        public Builder pluginRepo(String v) {
+            this.pluginRepo = v;
+            return this;
+        }
+
+        public Builder nullnessMode(String v) {
+            this.nullnessMode = v;
+            return this;
+        }
+
+        public Builder nullnessPackages(List<String> v) {
+            this.nullnessPackages.clear();
+            this.nullnessPackages.addAll(v);
+            return this;
+        }
+
+        public Builder errorProneDisabled(List<String> v) {
+            this.errorProneDisabled.clear();
+            this.errorProneDisabled.addAll(v);
+            return this;
+        }
+
+        public Builder pluginJars(List<Path> v) {
+            this.pluginJars.clear();
+            this.pluginJars.addAll(v);
             return this;
         }
 

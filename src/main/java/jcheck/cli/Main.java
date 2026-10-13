@@ -130,6 +130,8 @@ public final class Main {
         req.allow = a.getAllSplit("allow");
         req.denyWarnings = a.has("deny-warnings");
         req.reportSuppressions = a.has("report-suppressions");
+        req.errorProne = a.has("error-prone");
+        req.pluginOffline = a.has("offline");
         List<Path> sources = new ArrayList<>();
         for (String s : a.getAllSplit("sources")) {
             sources.add(Path.of(s));
@@ -398,6 +400,8 @@ public final class Main {
             "  --deny/--warn/--allow <code>            per-code level override (repeatable)",
             "  --deny-warnings                         treat warnings as errors",
             "  --report-suppressions                   list every suppression found",
+            "  --error-prone                           attach Error Prone and NullAway for this run",
+            "  --offline                               never download plugin jars; fail if not cached",
             "  --root <dir>                            project root (default .)",
             "  --sources/--classpath <paths>           override build model inputs",
             "  --release N                             compile against a release level",
