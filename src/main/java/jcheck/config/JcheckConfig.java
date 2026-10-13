@@ -63,6 +63,8 @@ public final class JcheckConfig {
     public String findsecbugsVersion = "1.13.0";
     public boolean findsecbugs = true;
     public boolean infer = false;
+    /** Explicit path to the Infer binary; blank means {@code $JCHECK_INFER} then PATH. */
+    public String inferBinary = "";
     public int testTimeoutSeconds = 10;
     public String threadLeaks = "fail";
     public String fdLeaks = "fail";
@@ -76,6 +78,10 @@ public final class JcheckConfig {
     /** Run tests under the JaCoCo agent and report uncovered lines (console launcher only). */
     public boolean coverage = false;
     public String coverageVersion = "0.8.12";
+    /** jcstress: run @JCStressTest classes. */
+    public boolean jcstress = false;
+    public String jcstressVersion = "0.16";
+    public String jcstressMode = "sanity";
     /** {@code delegate} (ask the build tool) or {@code console} (run the launcher with jcheck-junit). */
     public String testLauncher = "delegate";
     /** Randomize test method order and print the seed for reproducibility. */
@@ -165,6 +171,7 @@ public final class JcheckConfig {
             c.spotbugs = Toml.bool(bytecode, "spotbugs", false);
         }
         c.infer = Toml.bool(bytecode, "infer", c.infer);
+        c.inferBinary = Toml.str(bytecode, "infer_binary", c.inferBinary);
 
         Map<String, Object> tests = Toml.table(root, "tests");
         c.testTimeoutSeconds = Toml.integer(tests, "timeout_seconds", c.testTimeoutSeconds);
@@ -176,6 +183,9 @@ public final class JcheckConfig {
         c.mutationThreads = Toml.integer(tests, "mutation_threads", c.mutationThreads);
         c.coverage = Toml.bool(tests, "coverage", c.coverage);
         c.coverageVersion = Toml.str(tests, "coverage_version", c.coverageVersion);
+        c.jcstress = Toml.bool(tests, "jcstress", c.jcstress);
+        c.jcstressVersion = Toml.str(tests, "jcstress_version", c.jcstressVersion);
+        c.jcstressMode = Toml.str(tests, "jcstress_mode", c.jcstressMode);
         c.testLauncher = Toml.str(tests, "launcher", c.testLauncher);
         c.randomTestOrder = Toml.bool(tests, "random_order", c.randomTestOrder);
         c.consoleLauncher = Toml.str(tests, "console_launcher", null);

@@ -75,6 +75,10 @@ public final class Main {
                 return runLsp(rest);
             case "mutate":
                 return emit(runMutate(rest));
+            case "infer":
+                return emit(runInfer(rest));
+            case "jcstress":
+                return emit(runJcstress(rest));
             default:
                 System.err.println("jcheck: unknown command '" + command + "'");
                 System.err.print(usage());
@@ -335,6 +339,22 @@ public final class Main {
         return MutateCommand.run(buildRequest(a));
     }
 
+    /**
+     * {@code jcheck infer}: Facebook Infer over the project's sources.
+     */
+    static CheckCommand.Outcome runInfer(String[] rest) {
+        Args a = Args.parse(rest, VALUE_FLAGS);
+        return InferCommand.run(buildRequest(a));
+    }
+
+    /**
+     * {@code jcheck jcstress}: the OpenJDK Concurrency Stress Tests.
+     */
+    static CheckCommand.Outcome runJcstress(String[] rest) {
+        Args a = Args.parse(rest, VALUE_FLAGS);
+        return JcstressCommand.run(buildRequest(a));
+    }
+
     // ---- helpers ----------------------------------------------------------
 
     /**
@@ -417,6 +437,8 @@ public final class Main {
             "  mcp       resources-only MCP server on stdio (for MCP-capable agent hosts)",
             "  lsp       Language Server Protocol bridge on stdio (for editors)",
             "  mutate    PIT mutation testing; surviving mutants become diagnostics",
+            "  infer     Facebook Infer over the project's sources (native binary)",
+            "  jcstress  run @JCStressTest concurrency stress tests",
             "  version   prints the version",
             "",
             "flags:",

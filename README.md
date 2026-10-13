@@ -35,6 +35,8 @@ Requires a JDK and nothing else — no Gradle, no Maven, no network.
 | `jcheck mcp` | Resources-only MCP server on stdio, for MCP-capable agent hosts. |
 | `jcheck lsp` | Language Server Protocol bridge on stdio: diagnostics and quick fixes while you edit. |
 | `jcheck mutate` | PIT mutation testing; surviving mutants become diagnostics. Scope with `--sources`. |
+| `jcheck infer` | Facebook Infer over the project's sources, when the native binary is available. |
+| `jcheck jcstress` | Run `@JCStressTest` classes with the OpenJDK Concurrency Stress Tests. |
 
 Formats: `--message-format=human|json|llm|sarif`.
 Exit codes: `0` clean (warnings allowed unless `--deny-warnings`), `1` diagnostics at error
@@ -188,6 +190,13 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   whose files reference a changed API; fresh findings are merged with the cached ones for files that
   were not recompiled. Anything uncertain — a removed source, a changed classpath/flags/JDK, or an
   incremental compile that does not come back clean — falls back to a full re-check.
+- **Infer (T5)** — `jcheck infer` runs Facebook Infer's Java frontend when the native binary is on
+  `PATH` or pointed at by `[bytecode] infer_binary` / `$JCHECK_INFER`, and reports each finding as
+  `J1401` with Infer's own qualifier and procedure. Its `infer-out` stays in the jcheck cache; when
+  the binary is missing the command says so instead of reporting a quiet T5.
+- **Concurrency stress (T5)** — `jcheck jcstress` compiles the project's `@JCStressTest` sources
+  with the jcstress annotation processor when no `META-INF/TestList` exists yet, runs them, and
+  reports every forbidden or interesting outcome as `J1201`.
 - **Daemon** — length-prefixed binary protocol over a Unix domain socket, keyed by a hash of the
   project root so serving a project never writes into it. `jcheck check` uses a running daemon
   automatically and falls back in-process.
@@ -195,11 +204,11 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   per-session process and source-change subscriptions. See [MCP interface](#mcp-interface).
 - **`init`, `fix`, `explain`, `fmt`, `build`, `test`** — including a JUnit XML parser that lifts
   project stack frames above framework frames.
-- **Tests** — 1207 assertions: unit tests plus 22 rustc-style UI golden cases under
+- **Tests** — 1245 assertions: unit tests plus 22 rustc-style UI golden cases under
   `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output. Set
   `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end analyzer cases (Error Prone, NullAway, the
-  Checker Framework, SpotBugs and `jcheck-junit`), which need downloaded jars; that run has 1221
-  assertions.
+  Checker Framework, SpotBugs, jcstress and `jcheck-junit`), which need downloaded jars; that run
+  has 1260 assertions.
 - **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
   (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
   `Todo()`/`Unreachable()`/`Unimplemented()` markers behind J0902, and a sealed `Result` type.
@@ -216,8 +225,6 @@ overstate itself:
   under the jcheck cache directory and keyed by a fingerprint of the build files, so a warm daemon
   does not pay twice. When the tool is absent or the resolution fails, the heuristic classpath is
   kept and the limitation is stated on every run where it applies.
-- **No jcstress hook or Infer integration yet.** Lincheck-style tests run as ordinary JUnit tests
-  under `jcheck test --launcher`, so they are covered without a separate hook.
 - **`jcheck fix` does not run OpenRewrite recipes.** It applies the diagnostic model's
   machine-applicable suggestions and, with `--error-prone`, Error Prone's own patch mode
   (`-XepPatchChecks` / `-XepPatchLocation:IN_PLACE`); the sources are snapshotted first and every
@@ -244,8 +251,10 @@ domain sockets), but the JDK-21 baseline in the spec matters for the *checked co
 switch exhaustiveness and `-Xlint:this-escape` need 21+. UI goldens embed javac's own message
 wording, which is the reason SPEC.md lists a JDK matrix as a test dimension. The attached plugins
 are pinned to Error Prone **2.24.1**, NullAway **0.10.18** (with NullAway's `dataflow-nullaway` and
-JSpecify pulled in transitively), the Checker Framework **3.42.0** and SpotBugs **4.8.6**, which are
-the versions verified against JDK 20 here. All of them are configurable in `jcheck.toml`.
+JSpecify pulled in transitively), the Checker Framework **3.42.0**, SpotBugs **4.8.6**, PIT
+**1.15.8**, JaCoCo **0.8.12** and jcstress **0.16**, which are the versions verified against JDK 20
+here. All of them are configurable in `jcheck.toml`. Infer is a native binary and is located rather
+than resolved; the workspace copy used here is v1.2.0.
 
 ## Layout
 

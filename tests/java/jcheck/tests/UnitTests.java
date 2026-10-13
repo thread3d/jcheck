@@ -30,6 +30,8 @@ import jcheck.catalog.CatalogEntry;
 import jcheck.cli.CheckCommand;
 import jcheck.cli.CheckRequest;
 import jcheck.cli.FixCommand;
+import jcheck.cli.InferCommand;
+import jcheck.cli.JcstressCommand;
 import jcheck.config.JcheckConfig;
 import jcheck.config.Toml;
 import jcheck.daemon.Daemon;
@@ -99,6 +101,7 @@ final class UnitTests {
         suggestionRoundTripTests();
         daemonTests();
         lspTests();
+        inferIntegrationTests();
         errorProneIntegrationTests();
     }
 
@@ -154,19 +157,26 @@ final class UnitTests {
     // ---- daemon ------------------------------------------------------------
 
     /**
-     * Concurrent requests against one warm daemon must both succeed with the same output, and the
-     * daemon must shut down. Environments without Unix sockets or /tmp execution skip it: the
-     * in-process path is covered by every other test.
+     * One warm daemon across four requests: a missing dependency, a classpath change that must be
+     * picked up, a source edit that must not serve a stale report, and two concurrent requests that
+     * must agree. Environments without Unix sockets or /tmp execution skip it.
      */
     private static void daemonTests() throws Exception {
         Path root = Files.createTempDirectory("jcheck-daemon-");
         Path src = root.resolve("src/main/java/demo");
         Files.createDirectories(src);
-        Files.writeString(src.resolve("D.java"),
+        Path d = src.resolve("D.java");
+        Files.writeString(d,
             "package demo;\n"
+            + "import dep.Helper;\n"
             + "public final class D {\n"
             + "    public static int one() {\n"
-            + "        return 1;\n"
+            + "        return Helper.one();\n"
+            + "    }\n"
+            + "\n"
+            + "    static int twice(int x) {\n"
+            + "        int y = x * 2;\n"
+            + "        return y;\n"
             + "    }\n"
             + "}\n", StandardCharsets.UTF_8);
 
@@ -185,6 +195,35 @@ final class UnitTests {
             CheckRequest req = new CheckRequest();
             req.root = root.toString();
             req.format = "human";
+
+            // The dependency is missing, so T1 fails and T3 is gated off.
+            DaemonClient.Response before = DaemonClient.check(root.toString(), req);
+            notContains("daemon:classpath-missing", before.stdout, "J0706");
+
+            // Drop the dependency into lib/; the daemon must resolve it on the next request.
+            writeJar(root.resolve("lib/dep.jar"), "dep.Helper",
+                "package dep;\npublic final class Helper {\n"
+                + "    public static int one() {\n        return 1;\n    }\n}\n");
+            DaemonClient.Response after = DaemonClient.check(root.toString(), req);
+            contains("daemon:classpath-change-picked-up", after.stdout, "J0706");
+
+            // Edit the source; the next request must not serve the previous report.
+            Files.writeString(d,
+                "package demo;\n"
+                + "import dep.Helper;\n"
+                + "public final class D {\n"
+                + "    public static int one() {\n"
+                + "        return Helper.one();\n"
+                + "    }\n"
+                + "\n"
+                + "    static int twice(int x) {\n"
+                + "        final int y = x * 2;\n"
+                + "        return y;\n"
+                + "    }\n"
+                + "}\n", StandardCharsets.UTF_8);
+            DaemonClient.Response edited = DaemonClient.check(root.toString(), req);
+            notContains("daemon:source-change-not-stale", edited.stdout, "J0706");
+
             ExecutorService pool = Executors.newFixedThreadPool(2);
             try {
                 Callable<DaemonClient.Response> call = () -> DaemonClient.check(root.toString(), req);
@@ -204,6 +243,62 @@ final class UnitTests {
                 "daemon did not shut down");
             deleteRecursively(root);
         }
+    }
+
+    /** Compiles one class with the system compiler and packs it into a jar. */
+    private static void writeJar(Path jar, String className, String source) throws Exception {
+        Path work = Files.createTempDirectory("jcheck-jar-");
+        Path file = work.resolve(className.replace('.', '/') + ".java");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, source, StandardCharsets.UTF_8);
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        try (StandardJavaFileManager fm = compiler.getStandardFileManager(null, null,
+                StandardCharsets.UTF_8)) {
+            compiler.getTask(null, fm, null, List.of("-d", work.toString()), null,
+                fm.getJavaFileObjects(file)).call();
+        }
+        Files.createDirectories(jar.getParent());
+        try (java.util.jar.JarOutputStream out =
+                 new java.util.jar.JarOutputStream(Files.newOutputStream(jar))) {
+            Path compiled = work.resolve(className.replace('.', '/') + ".class");
+            out.putNextEntry(new java.util.jar.JarEntry(className.replace('.', '/') + ".class"));
+            Files.copy(compiled, out);
+            out.closeEntry();
+        }
+        deleteRecursively(work);
+    }
+
+    // ---- external analyzers ------------------------------------------------
+
+    /**
+     * Runs Infer when a binary is available (the CI/workspace copy or {@code $JCHECK_INFER});
+     * otherwise it skips, because Infer is a native binary and not every machine has one.
+     */
+    private static void inferIntegrationTests() throws Exception {
+        String configured = System.getenv("JCHECK_INFER");
+        Path infer = configured == null || configured.isBlank()
+            ? Path.of("/Users/threaded/projects/JCheck/tools/infer-osx-x86_64-v1.2.0/bin/infer")
+            : Path.of(configured);
+        if (!Files.isExecutable(infer)) {
+            return;
+        }
+        Path tmp = Files.createTempDirectory("jcheck-infer-it-");
+        Path src = tmp.resolve("src/main/java/demo");
+        Files.createDirectories(src);
+        Files.writeString(src.resolve("N.java"),
+            "package demo;\npublic final class N {\n"
+            + "    static int len() {\n        String s = null;\n        return s.length();\n    }\n}\n",
+            StandardCharsets.UTF_8);
+        Files.writeString(tmp.resolve("jcheck.toml"),
+            "[bytecode]\ninfer = true\ninfer_binary = \"" + infer + "\"\n",
+            StandardCharsets.UTF_8);
+        CheckRequest req = new CheckRequest();
+        req.root = tmp.toString();
+        req.format = "human";
+        CheckCommand.Outcome out = InferCommand.run(req);
+        contains("infer:j1401", out.stdout, "J1401");
+        contains("infer:source", out.stdout, "source: infer");
+        deleteRecursively(tmp);
     }
 
     // ---- incremental planning ----------------------------------------------
@@ -554,6 +649,29 @@ final class UnitTests {
         check("plugins:fix-error-prone-patch", patched.contains("Objects.equals"), patched);
         eq("plugins:fix-clean-after-patch", 0, fxOut.exitCode);
         deleteRecursively(fx);
+
+        Path jc = Files.createTempDirectory("jcheck-jcstress-it-");
+        Path jcSrc = jc.resolve("src/test/java/demo");
+        Files.createDirectories(jcSrc);
+        Files.writeString(jcSrc.resolve("Racy.java"),
+            "package demo;\n"
+            + "import org.openjdk.jcstress.annotations.*;\n"
+            + "import org.openjdk.jcstress.infra.results.I_Result;\n"
+            + "@JCStressTest\n"
+            + "@Outcome(id = \"1\", expect = Expect.ACCEPTABLE, desc = \"saw the write\")\n"
+            + "@Outcome(id = \"0\", expect = Expect.FORBIDDEN, desc = \"race\")\n"
+            + "@State\n"
+            + "public class Racy {\n"
+            + "    int x;\n"
+            + "    @Actor public void writer() { x = 1; }\n"
+            + "    @Actor public void reader(I_Result r) { r.r1 = x; }\n"
+            + "}\n", StandardCharsets.UTF_8);
+        CheckRequest jcReq = new CheckRequest();
+        jcReq.root = jc.toString();
+        jcReq.format = "human";
+        CheckCommand.Outcome jcOut = JcstressCommand.run(jcReq);
+        contains("plugins:jcstress-failure", jcOut.stdout, "J1201");
+        deleteRecursively(jc);
 
         junitHarnessIntegrationTest();
     }
