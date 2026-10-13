@@ -86,6 +86,64 @@ public final class BuildModel {
         String tool = detectBuildTool(absRoot);
 
         List<Path> modules = new ArrayList<>();
+        List<Path> toolSourceRoots = new ArrayList<>();
+
+        Set<Path> classpath = new LinkedHashSet<>();
+        for (Path p : classpathOverrides) {
+            classpath.add(absRoot.resolve(p).normalize());
+        }
+        if (!classpathOverrides.isEmpty()) {
+            info.add("classpath extended from --classpath");
+        }
+        Path lib = absRoot.resolve("lib");
+        if (Files.isDirectory(lib)) {
+            try (Stream<Path> s = Files.list(lib)) {
+                s.filter(p -> p.toString().endsWith(".jar")).sorted().forEach(classpath::add);
+            } catch (IOException ignored) {
+                // an unreadable lib/ is not fatal
+            }
+        }
+        for (String c : CLASSPATH_CANDIDATES) {
+            Path p = absRoot.resolve(c);
+            if (Files.isDirectory(p)) {
+                classpath.add(p);
+            }
+        }
+        List<Path> processorPath = new ArrayList<>();
+        for (Path p : processorOverrides) {
+            processorPath.add(absRoot.resolve(p).normalize());
+        }
+
+        /*
+         * When the project has a build tool, ask it for the real dependency classpath instead of
+         * guessing. A failure here is stated as a note and the heuristic classpath above is kept.
+         */
+        boolean classpathResolved = !classpathOverrides.isEmpty();
+        if (("gradle".equals(tool) || "maven".equals(tool)) && classpathOverrides.isEmpty()
+            && config.resolveClasspath) {
+            DependencyResolver.Result deps = DependencyResolver.resolve(absRoot, tool,
+                findBuildExecutable(absRoot, tool));
+            classpath.addAll(deps.classpath);
+            toolSourceRoots.addAll(deps.sourceRoots);
+            for (Path p : deps.processorPath) {
+                if (!processorPath.contains(p)) {
+                    processorPath.add(p);
+                }
+            }
+            notes.addAll(deps.notes);
+            classpathResolved = deps.resolved;
+            if (deps.resolved) {
+                info.add("classpath resolved from " + tool);
+            }
+        } else if (("gradle".equals(tool) || "maven".equals(tool)) && classpathOverrides.isEmpty()) {
+            notes.add("build-tool classpath resolution is disabled in jcheck.toml; "
+                + "third-party types may appear unresolved");
+        }
+
+        /*
+         * Sources are resolved after the classpath so a Gradle build can contribute its own source
+         * sets; a --sources list or [project].sources still wins over everything.
+         */
         List<Path> sources;
         if (!sourceOverrides.isEmpty()) {
             sources = expand(absRoot, sourceOverrides);
@@ -99,9 +157,14 @@ public final class BuildModel {
             info.add("source roots came from [project].sources");
         } else {
             List<Path> candidates = new ArrayList<>();
+            if (!toolSourceRoots.isEmpty()) {
+                candidates.addAll(toolSourceRoots);
+                info.add("source roots came from the build tool: "
+                    + relativeAll(absRoot, toolSourceRoots));
+            }
             for (String s : SOURCE_ROOT_CANDIDATES) {
                 Path p = absRoot.resolve(s);
-                if (Files.isDirectory(p)) {
+                if (Files.isDirectory(p) && !candidates.contains(p)) {
                     candidates.add(p);
                 }
             }
@@ -141,57 +204,6 @@ public final class BuildModel {
                 info.add("auto-detected source roots: " + relativeAll(absRoot, candidates));
             }
             sources = expand(absRoot, candidates);
-        }
-
-        Set<Path> classpath = new LinkedHashSet<>();
-        for (Path p : classpathOverrides) {
-            classpath.add(absRoot.resolve(p).normalize());
-        }
-        if (!classpathOverrides.isEmpty()) {
-            info.add("classpath extended from --classpath");
-        }
-        Path lib = absRoot.resolve("lib");
-        if (Files.isDirectory(lib)) {
-            try (Stream<Path> s = Files.list(lib)) {
-                s.filter(p -> p.toString().endsWith(".jar")).sorted().forEach(classpath::add);
-            } catch (IOException ignored) {
-                // an unreadable lib/ is not fatal
-            }
-        }
-        for (String c : CLASSPATH_CANDIDATES) {
-            Path p = absRoot.resolve(c);
-            if (Files.isDirectory(p)) {
-                classpath.add(p);
-            }
-        }
-        List<Path> processorPath = new ArrayList<>();
-        for (Path p : processorOverrides) {
-            processorPath.add(absRoot.resolve(p).normalize());
-        }
-
-        /*
-         * When the project has a build tool, ask it for the real dependency classpath instead of
-         * guessing. A failure here is stated as a note and the heuristic classpath above is kept.
-         */
-        boolean classpathResolved = !classpathOverrides.isEmpty();
-        if (("gradle".equals(tool) || "maven".equals(tool)) && classpathOverrides.isEmpty()
-            && config.resolveClasspath) {
-            DependencyResolver.Result deps = DependencyResolver.resolve(absRoot, tool,
-                findBuildExecutable(absRoot, tool));
-            classpath.addAll(deps.classpath);
-            for (Path p : deps.processorPath) {
-                if (!processorPath.contains(p)) {
-                    processorPath.add(p);
-                }
-            }
-            notes.addAll(deps.notes);
-            classpathResolved = deps.resolved;
-            if (deps.resolved) {
-                info.add("classpath resolved from " + tool);
-            }
-        } else if (("gradle".equals(tool) || "maven".equals(tool)) && classpathOverrides.isEmpty()) {
-            notes.add("build-tool classpath resolution is disabled in jcheck.toml; "
-                + "third-party types may appear unresolved");
         }
 
         Integer release = releaseOverride != null ? releaseOverride : config.release;
@@ -429,12 +441,19 @@ public final class BuildModel {
         return values;
     }
 
-    private static String relativeAll(Path root, List<Path> paths) {        StringBuilder sb = new StringBuilder();
+    private static String relativeAll(Path root, List<Path> paths) {
+        StringBuilder sb = new StringBuilder();
         for (int i = 0; i < paths.size(); i++) {
             if (i > 0) {
                 sb.append(", ");
             }
-            sb.append(root.relativize(paths.get(i)));
+            Path p = paths.get(i);
+            /*
+             * A build tool can report a canonical path (/private/tmp) where the root was given
+             * through a symlink (/tmp); relativizing then yields a "../.." chain, so fall back to
+             * the absolute path rather than printing a misleading relative one.
+             */
+            sb.append(p.startsWith(root) ? root.relativize(p) : p);
         }
         return sb.toString();
     }

@@ -99,6 +99,7 @@ final class UnitTests {
         dependencyResolverTests();
         incrementalPlanTests();
         multiModuleTests();
+        gradleSourceSetTests();
         mavenResolverTests();
         suggestionRoundTripTests();
         daemonTests();
@@ -354,12 +355,53 @@ final class UnitTests {
         }
     }
 
-    // ---- real-project corpus ------------------------------------------------
     /**
-     * Runs the T3 pack over a real library's sources — Apache Commons Lang's own `-sources` jar —
-     * and records diagnostics per kLOC. This is the false-positive guard the curated cases cannot
+     * End-to-end: a Gradle build with a custom source set must be read from the build tool rather
+     * than guessed from the directory names. Gated on {@code JCHECK_GRADLE_HOME} so it runs only
+     * where a Gradle home is configured and a Gradle binary is present.
+     */
+    private static void gradleSourceSetTests() throws Exception {
+        String gradleHome = System.getenv("JCHECK_GRADLE_HOME");
+        Path gradle = Path.of("/Users/threaded/projects/JCheck/tools/gradle-8.10.2/bin/gradle");
+        if (gradleHome == null || gradleHome.isBlank() || !Files.isExecutable(gradle)) {
+            return;
+        }
+        Path tmp = Files.createTempDirectory("jcheck-gradle-src-");
+        try {
+            Path src = tmp.resolve("src/java/demo");
+            Files.createDirectories(src);
+            Files.writeString(src.resolve("G.java"), "package demo;\npublic final class G {}\n");
+            Files.writeString(tmp.resolve("settings.gradle"), "rootProject.name = 'customsrc'\n");
+            Files.writeString(tmp.resolve("build.gradle"),
+                "plugins { id 'java' }\nsourceSets.main.java.srcDirs = ['src/java']\n");
+            Path wrapper = tmp.resolve("gradlew");
+            Files.writeString(wrapper, "#!/bin/sh\nexec " + gradle + " \"$@\"\n");
+            wrapper.toFile().setExecutable(true);
+
+            JcheckConfig config = JcheckConfig.load(tmp);
+            BuildModel model = BuildModel.resolve(tmp, config, null, null, null, null);
+            if (!model.classpathResolved) {
+                // Gradle cannot run on every JDK; the build-tool path is asserted where it can.
+                return;
+            }
+            check("gradle:source-roots-from-tool",
+                model.info.stream().anyMatch(i -> i.contains("source roots came from the build tool")),
+                model.info.toString());
+            check("gradle:custom-src-dir",
+                model.sources.stream().anyMatch(p -> p.getFileName().toString().equals("G.java")),
+                model.sources.toString());
+        } finally {
+            deleteRecursively(tmp);
+        }
+    }
+
+    // ---- real-project corpus ------------------------------------------------
+
+    /**
+     * Runs the T3 pack over five real libraries' own {@code -sources} jars and records diagnostics
+     * per kLOC, per library and in total. This is the false-positive guard the curated cases cannot
      * be: a rule that explodes on ordinary code shows up here as a noise-budget failure instead of
-     * in a user's first run. Opt-in, because it downloads the sources jar.
+     * in a user's first run. Opt-in, because it downloads the sources jars.
      */
     private static void corpusTests() throws Exception {
         if (!"1".equals(System.getenv("JCHECK_TEST_PLUGINS"))) {
@@ -740,10 +782,15 @@ final class UnitTests {
     private static void dependencyResolverTests() throws Exception {
         DependencyResolver.Parsed parsed = DependencyResolver.parseGradleOutput(
             "noise\nJCHECK_CLASSPATH_BEGIN\n/a/x.jar\n/b/y.jar\n"
-            + "JCHECK_PROCESSOR\n/c/ap.jar\nJCHECK_CLASSPATH_END\n");
+            + "JCHECK_PROCESSOR\n/c/ap.jar\nJCHECK_SOURCES\n/proj/src/java\n"
+            + "JCHECK_CLASSPATH_END\n");
         check("deps:gradle-parsed",
             parsed != null && parsed.classpath.size() == 2 && parsed.processorPath.size() == 1,
             "parsed=" + parsed);
+        check("deps:gradle-source-roots",
+            parsed != null && parsed.sourceRoots.size() == 1
+                && parsed.sourceRoots.get(0).toString().equals("/proj/src/java"),
+            "sources=" + (parsed == null ? null : parsed.sourceRoots));
         check("deps:gradle-null-without-markers",
             DependencyResolver.parseGradleOutput("nothing here") == null, null);
         check("deps:maven-split", DependencyResolver.splitClasspath(

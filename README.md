@@ -207,12 +207,14 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   other fix paths. Every applied change is reported with a catalog code — J1501, J1502, J1503, or
   J1500 for a recipe with no curated row — so a rewrite is auditable in the same model as any other
   finding. jcheck itself has no OpenRewrite dependency.
-- **Multi-module builds** — when there is no root `src/main/java`, the model walks for module source
-  roots (`module-a/src/main/java`, `group/module-b/src/test/java`, …) up to five levels deep, pruning
-  build outputs, VCS metadata and hidden directories, and it also reads `pom.xml` for a Maven
-  project's declared `<modules>` and each module's `<sourceDirectory>`/`<testSourceDirectory>`, so a
-  module with `src/java` instead of `src/main/java` is found too. A Gradle project with a
-  non-standard source set still needs `[project] sources`.
+- **Multi-module builds** — a Gradle build contributes its own source sets (the init script prints
+  each project's `java` and, when the Kotlin plugin is present, `kotlin` source directories), and a
+  Maven `pom.xml` contributes its declared `<modules>` and each module's
+  `<sourceDirectory>`/`<testSourceDirectory>`, so a module with `src/java` instead of
+  `src/main/java` is found by the declaration. When neither is available, the model walks for module
+  source roots (`module-a/src/main/java`, `group/module-b/src/test/java`, …) up to five levels deep,
+  pruning build outputs, VCS metadata and hidden directories. A `--sources` list or
+  `[project].sources` still wins over all of it.
 - **Daemon** — length-prefixed binary protocol over a Unix domain socket, keyed by a hash of the
   project root so serving a project never writes into it. `jcheck check` uses a running daemon
   automatically and falls back in-process. A dropped connection, a malformed frame or a throwing
@@ -222,12 +224,12 @@ code, tier, curated headline and help lines. Unmapped keys are never dropped: th
   per-session process and source-change subscriptions. See [MCP interface](#mcp-interface).
 - **`init`, `fix`, `explain`, `fmt`, `build`, `test`** — including a JUnit XML parser that lifts
   project stack frames above framework frames.
-- **Tests** — 1324 assertions: unit tests plus 22 rustc-style UI golden cases under
+- **Tests** — 1327 assertions: unit tests plus 22 rustc-style UI golden cases under
   `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output. Set
   `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end analyzer cases (Error Prone, NullAway, the
   Checker Framework, SpotBugs, jcstress, OpenRewrite, the five-library corpus and `jcheck-junit`),
-  which need downloaded jars; that run has 1364 assertions on JDK 20 and fewer on 21 (1362) and 25
-  (1354), where an analyzer or corpus library that does not support the JDK is skipped rather than
+  which need downloaded jars; that run has 1367 assertions on JDK 20 and fewer on 21 (1365) and 25
+  (1357), where an analyzer or corpus library that does not support the JDK is skipped rather than
   counted green.
 - **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
   (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
@@ -244,9 +246,10 @@ overstate itself:
   annotation-processor classpath (for Maven, `dependency:build-classpath`). The answer is cached
   under the jcheck cache directory and keyed by a fingerprint of the build files, so a warm daemon
   does not pay twice. When the tool is absent or the resolution fails, the heuristic classpath is
-  kept and the limitation is stated on every run where it applies. Multi-module *sources* come from
-  the directory walk plus a Maven `pom.xml`'s own `<modules>` and `<sourceDirectory>` declarations;
-  Gradle source sets are not queried, so a custom Gradle layout needs `[project] sources`.
+  kept and the limitation is stated on every run where it applies. Source roots come from the build
+  tool where it can report them (Gradle source sets, Maven `<modules>` and `<sourceDirectory>`); the
+  Tooling API itself is not embedded, and a build tool that is absent leaves only the directory
+  walk.
 - **OpenRewrite coverage is opt-in and Java-only.** `jcheck rewrite` runs the recipes named in
   `[fix] rewrite_recipes` from `rewrite-static-analysis`; other recipe libraries are not resolved,
   and a recipe that is not on the classpath fails loudly rather than being skipped.

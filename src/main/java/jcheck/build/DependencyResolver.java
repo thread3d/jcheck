@@ -29,12 +29,16 @@ public final class DependencyResolver {
     public static final class Result {
         public final List<Path> classpath;
         public final List<Path> processorPath;
+        /** Source roots the build tool declared (Gradle source sets; empty for Maven). */
+        public final List<Path> sourceRoots;
         public final List<String> notes;
         public final boolean resolved;
 
-        Result(List<Path> classpath, List<Path> processorPath, List<String> notes, boolean resolved) {
+        Result(List<Path> classpath, List<Path> processorPath, List<Path> sourceRoots,
+               List<String> notes, boolean resolved) {
             this.classpath = List.copyOf(classpath);
             this.processorPath = List.copyOf(processorPath);
+            this.sourceRoots = List.copyOf(sourceRoots);
             this.notes = List.copyOf(notes);
             this.resolved = resolved;
         }
@@ -43,6 +47,7 @@ public final class DependencyResolver {
     private static final String BEGIN = "JCHECK_CLASSPATH_BEGIN";
     private static final String END = "JCHECK_CLASSPATH_END";
     private static final String PROCESSOR = "JCHECK_PROCESSOR";
+    private static final String SOURCES = "JCHECK_SOURCES";
 
     private DependencyResolver() {
     }
@@ -52,7 +57,7 @@ public final class DependencyResolver {
         if (executable == null) {
             notes.add(tool + " is not installed, so its dependency graph was not read; "
                 + "third-party types may appear unresolved. Pass --classpath to close that gap.");
-            return new Result(List.of(), List.of(), notes, false);
+            return new Result(List.of(), List.of(), List.of(), notes, false);
         }
 
         Path cached = cacheFile(root, tool);
@@ -66,7 +71,8 @@ public final class DependencyResolver {
             writeCache(cached, result);
         }
         notes.addAll(result.notes);
-        return new Result(result.classpath, result.processorPath, notes, result.resolved);
+        return new Result(result.classpath, result.processorPath, result.sourceRoots, notes,
+            result.resolved);
     }
 
     // ---- gradle ------------------------------------------------------------
@@ -94,7 +100,8 @@ public final class DependencyResolver {
             if (process.exitValue() != 0 || parsed == null) {
                 return failure("gradle could not report its classpath: " + firstLine(output));
             }
-            return new Result(parsed.classpath, parsed.processorPath, List.of(), true);
+            return new Result(parsed.classpath, parsed.processorPath, parsed.sourceRoots,
+                List.of(), true);
         } catch (IOException e) {
             return failure("gradle could not be started: " + e.getMessage());
         } catch (InterruptedException e) {
@@ -125,26 +132,38 @@ public final class DependencyResolver {
         + " catch (Exception ignored) { }\n"
         + "      }\n"
         + "      processors.each { println it }\n"
+        + "      println '" + SOURCES + "'\n"
+        + "      def sourceDirs = new LinkedHashSet<String>()\n"
+        + "      try {\n"
+        + "        p.sourceSets.each { ss ->\n"
+        + "          ss.java.srcDirs.each { d -> if (d.exists()) sourceDirs.add(d.absolutePath) }\n"
+        + "          try { ss.kotlin.srcDirs.each { d -> if (d.exists()) sourceDirs.add(d.absolutePath) } } catch (Exception ignored) { }\n"
+        + "        }\n"
+        + "      } catch (Exception ignored) { }\n"
+        + "      sourceDirs.each { println it }\n"
         + "      println '" + END + "'\n"
         + "    }\n"
         + "  }\n"
         + "}\n";
 
-    /** The two classpaths a build tool reported. */
+    /** The classpaths and source roots a build tool reported. */
     public static final class Parsed {
         public final List<Path> classpath;
         public final List<Path> processorPath;
+        public final List<Path> sourceRoots;
 
-        Parsed(List<Path> classpath, List<Path> processorPath) {
+        Parsed(List<Path> classpath, List<Path> processorPath, List<Path> sourceRoots) {
             this.classpath = classpath;
             this.processorPath = processorPath;
+            this.sourceRoots = sourceRoots;
         }
     }
 
-    /** Extracts the two sections; null when the markers are absent. */
+    /** Extracts the sections; null when the begin/end markers are absent. */
     public static Parsed parseGradleOutput(String output) {
         List<Path> classpath = new ArrayList<>();
         List<Path> processors = new ArrayList<>();
+        List<Path> sources = new ArrayList<>();
         List<Path> target = null;
         boolean sawBegin = false;
         for (String raw : output.split("\n", -1)) {
@@ -158,8 +177,12 @@ public final class DependencyResolver {
                 target = processors;
                 continue;
             }
+            if (SOURCES.equals(line)) {
+                target = sources;
+                continue;
+            }
             if (END.equals(line)) {
-                return sawBegin ? new Parsed(classpath, processors) : null;
+                return sawBegin ? new Parsed(classpath, processors, sources) : null;
             }
             if (target != null && !line.isEmpty()) {
                 target.add(Path.of(line));
@@ -195,7 +218,7 @@ public final class DependencyResolver {
                 return failure("maven could not report its classpath: " + firstLine(output));
             }
             return new Result(splitClasspath(Files.readString(out, StandardCharsets.UTF_8)),
-                List.of(), List.of(), true);
+                List.of(), List.of(), List.of(), true);
         } catch (IOException e) {
             return failure("maven could not be started: " + e.getMessage());
         } catch (InterruptedException e) {
@@ -220,7 +243,7 @@ public final class DependencyResolver {
     // ---- cache -------------------------------------------------------------
 
     private static Result failure(String note) {
-        return new Result(List.of(), List.of(), List.of(note), false);
+        return new Result(List.of(), List.of(), List.of(), List.of(note), false);
     }
 
     /** A stable key for the current build files: path plus size and mtime. */
@@ -266,10 +289,13 @@ public final class DependencyResolver {
         try {
             List<Path> classpath = new ArrayList<>();
             List<Path> processors = new ArrayList<>();
+            List<Path> sources = new ArrayList<>();
             List<Path> target = classpath;
             for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
                 if ("processor".equals(line)) {
                     target = processors;
+                } else if ("sources".equals(line)) {
+                    target = sources;
                 } else if (!line.isBlank()) {
                     target.add(Path.of(line.strip()));
                 }
@@ -277,7 +303,7 @@ public final class DependencyResolver {
             if (classpath.isEmpty()) {
                 return null;
             }
-            return new Result(classpath, processors, List.of(), true);
+            return new Result(classpath, processors, sources, List.of(), true);
         } catch (IOException | RuntimeException e) {
             return null;
         }
@@ -290,6 +316,10 @@ public final class DependencyResolver {
         }
         sb.append("processor\n");
         for (Path p : result.processorPath) {
+            sb.append(p).append('\n');
+        }
+        sb.append("sources\n");
+        for (Path p : result.sourceRoots) {
             sb.append(p).append('\n');
         }
         try {
