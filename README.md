@@ -393,3 +393,7 @@ tests/java/                               unit tests and the golden runner
 tests/ui/cases/                           rustc-style golden cases
 tests/mcp-sdk-verify/                     opt-in MCP check against the official SDK
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
