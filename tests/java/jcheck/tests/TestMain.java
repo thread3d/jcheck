@@ -12,6 +12,7 @@ import jcheck.cli.CheckCommand;
 import jcheck.cli.CheckRequest;
 import jcheck.cli.Main;
 import jcheck.cli.TestCommand;
+import jcheck.selfreport.IssueLog;
 
 /**
  * jcheck's own test runner. No JUnit, no network: it compiles with the same JDK the tool needs
@@ -42,6 +43,17 @@ public final class TestMain {
             } else {
                 repoRoot = Path.of(a).toAbsolutePath().normalize();
             }
+        }
+
+        /*
+         * jcheck records its own issues in a durable log. The suite must never write into the
+         * checkout's real backlog, so it points the log at build output unless the caller chose a
+         * path (the self-report tests do, and restore it afterwards).
+         */
+        if (System.getProperty(IssueLog.PROPERTY) == null) {
+            Path testLog = repoRoot.resolve("out/test-issues/self-report.jsonl");
+            Files.createDirectories(testLog.getParent());
+            System.setProperty(IssueLog.PROPERTY, testLog.toString());
         }
 
         UnitTests.run(repoRoot);

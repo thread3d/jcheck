@@ -12,6 +12,7 @@ import jcheck.plugins.InferRunner;
 import jcheck.render.RenderOptions;
 import jcheck.render.Renderer;
 import jcheck.render.Renderers;
+import jcheck.selfreport.SelfReport;
 
 /**
  * {@code jcheck infer}: run Facebook Infer and render its findings as diagnostics.
@@ -54,6 +55,7 @@ public final class InferCommand {
 
         CheckReport report = new CheckReport(result.diagnostics, List.of(), List.of(),
             inferTiers(), notes, List.of());
+        SelfReport.captureReport(report);
         int maxDiag = req.maxDiagnostics > 0 ? req.maxDiagnostics
             : ("llm".equals(format) ? config.llmMaxDiagnostics : 0);
         int contextLines = req.contextLines >= 0 ? req.contextLines : config.llmContextLines;

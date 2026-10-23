@@ -14,6 +14,7 @@ import jcheck.model.TierReport;
 import jcheck.render.RenderOptions;
 import jcheck.render.Renderer;
 import jcheck.render.Renderers;
+import jcheck.selfreport.SelfReport;
 import jcheck.testharness.JUnitHarness;
 import jcheck.testharness.JUnitXmlParser;
 
@@ -89,6 +90,7 @@ public final class TestCommand {
 
         CheckReport report = new CheckReport(diagnostics, List.of(), List.of(),
             testTierReport(), notes, List.of());
+        SelfReport.captureReport(report);
 
         int maxDiag = req.maxDiagnostics > 0 ? req.maxDiagnostics
             : ("llm".equals(format) ? config.llmMaxDiagnostics : 0);

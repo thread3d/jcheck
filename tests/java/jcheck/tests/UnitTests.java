@@ -67,6 +67,10 @@ import jcheck.render.LlmRenderer;
 import jcheck.render.RenderOptions;
 import jcheck.render.Renderers;
 import jcheck.render.SarifRenderer;
+import jcheck.selfreport.Issue;
+import jcheck.selfreport.IssueKind;
+import jcheck.selfreport.IssueLog;
+import jcheck.selfreport.SelfReport;
 import jcheck.testharness.JUnitXmlParser;
 import jcheck.testharness.LincheckRunner;
 import jcheck.util.JsonWriter;
@@ -117,6 +121,98 @@ final class UnitTests {
         corpusTests();
         daemonOomTests();
         errorProneIntegrationTests();
+        selfReportTests();
+    }
+
+    // ---- self-report log ---------------------------------------------------
+
+    /**
+     * jcheck's own issue log: one entry per distinct problem, stable fingerprints, a markdown page
+     * a later session can read, and precise catalog-gap entries instead of a count.
+     */
+    private static void selfReportTests() throws Exception {
+        Path tmp = Files.createTempDirectory("jcheck-selfreport-");
+        Path log = tmp.resolve("nested/issues.jsonl");
+        String previous = System.getProperty(IssueLog.PROPERTY);
+        System.setProperty(IssueLog.PROPERTY, log.toString());
+        try {
+            check("selfreport:starts-empty", IssueLog.read().isEmpty(), "log=" + log);
+
+            Issue first = SelfReport.internalError("boom in check", new IllegalStateException("kaput"));
+            check("selfreport:internal-recorded", first != null, "record returned null");
+            eq("selfreport:internal-kind", IssueKind.INTERNAL_ERROR.wire(),
+                IssueLog.read().get(0).kind().wire());
+            contains("selfreport:internal-stack", IssueLog.read().get(0).stack(), "IllegalStateException");
+
+            SelfReport.internalError("boom in check", new IllegalStateException("kaput"));
+            eq("selfreport:dedupe", 1, IssueLog.read().size());
+
+            SelfReport.environment("Infer is not available", "set JCHECK_INFER");
+            SelfReport.record(IssueKind.CAPABILITY_GAP, "unmapped diagnostic", "compiler.err.weird", null);
+            eq("selfreport:three-entries", 3, IssueLog.read().size());
+
+            List<Issue> all = IssueLog.read();
+            eq("selfreport:bugs-first", IssueKind.INTERNAL_ERROR, all.get(0).kind());
+
+            String markdown = IssueLog.renderMarkdown(all);
+            contains("selfreport:markdown-summary", markdown, "boom in check");
+            contains("selfreport:markdown-hint", markdown, "hint:");
+            contains("selfreport:markdown-stack", markdown, "IllegalStateException");
+
+            eq("selfreport:classify-tool-failure", IssueKind.TOOL_FAILURE,
+                SelfReport.classifyNote("Error Prone is enabled but its plugin jars could not be "
+                    + "resolved: x"));
+            eq("selfreport:classify-environment", IssueKind.ENVIRONMENT,
+                SelfReport.classifyNote("Infer is not available: set JCHECK_INFER"));
+            eq("selfreport:classify-uncatalogued-null", null,
+                SelfReport.classifyNote("3 Error Prone/NullAway key(s) are not in the catalog yet"));
+            eq("selfreport:classify-informative-null", null,
+                SelfReport.classifyNote("no src/main/java found; scanning the project root"));
+
+            // A finished report is the richest automatic source: fallback codes become precise
+            // catalog-gap entries, and a failing tool note becomes a tool-failure entry.
+            Diagnostic fallback = Diagnostic.builder("J9001")
+                .source("javac").sourceKey("compiler.err.weird.key")
+                .level(Level.WARNING).tier(Tier.T1).message("weird compiler message")
+                .seq(1).build();
+            TierReport tiers = new TierReport(List.of(new TierReport.Entry(Tier.T1, true, "")), false);
+            CheckReport report = new CheckReport(List.of(fallback), List.of(), List.of(), tiers,
+                List.of("SpotBugs is configured but the check produced no class files; T5 did not run"),
+                List.of());
+            SelfReport.beginRun("check", "/tmp/project-a");
+            SelfReport.captureReport(report);
+            String rendered = IssueLog.renderMarkdown(IssueLog.read());
+            contains("selfreport:catalog-gap", rendered, "unmapped javac diagnostic: compiler.err.weird.key");
+            contains("selfreport:tool-failure", rendered,
+                "SpotBugs is configured but the check produced no class files");
+
+            // The identity of a problem survives scratch directories and object identity hashes.
+            eq("selfreport:fingerprint-stable",
+                Issue.fingerprint(IssueKind.TOOL_FAILURE, "x @1a2b3c4d5e",
+                    "/var/folders/aa/T/jcheck-scratch-111"),
+                Issue.fingerprint(IssueKind.TOOL_FAILURE, "x @9988776655",
+                    "/var/folders/bb/T/jcheck-scratch-222"));
+
+            // A project with no sources is a configuration problem, not a plugin failure: the tier
+            // line must say so, and the self-report must not record a tool failure for it.
+            CheckRequest emptyReq = new CheckRequest();
+            emptyReq.root = Files.createTempDirectory("jcheck-selfreport-empty-").toString();
+            CheckCommand.Analysis empty = CheckCommand.analyze(emptyReq);
+            check("selfreport:empty-analyzed", empty.ok(), empty.error);
+            contains("selfreport:no-sources-tier", empty.report.tiers.note(Tier.T3),
+                "no Java sources");
+            notContains("selfreport:no-sources-not-plugin",
+                IssueLog.renderMarkdown(IssueLog.read()), "plugin unavailable");
+
+            check("selfreport:clear", IssueLog.clear(), "clear returned false");
+            check("selfreport:empty-after-clear", IssueLog.read().isEmpty(), "entries survived clear");
+        } finally {
+            if (previous == null) {
+                System.clearProperty(IssueLog.PROPERTY);
+            } else {
+                System.setProperty(IssueLog.PROPERTY, previous);
+            }
+        }
     }
 
     // ---- suggestion round-trip ---------------------------------------------

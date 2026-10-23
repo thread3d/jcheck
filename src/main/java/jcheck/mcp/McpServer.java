@@ -16,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import jcheck.cli.CheckRequest;
 import jcheck.cli.Main;
+import jcheck.selfreport.SelfReport;
 import jcheck.util.Json;
 import jcheck.util.JsonWriter;
 
@@ -157,6 +158,8 @@ public final class McpServer {
             }
         } catch (RuntimeException e) {
             log.println("jcheck mcp: internal error handling " + method + ": " + e);
+            SelfReport.internalError("MCP method " + method + " failed: "
+                + (e.getMessage() == null ? e.getClass().getName() : e.getMessage()), e);
             return notification ? null
                 : errorResponse(id, -32603, "Internal error",
                     Map.of("detail", String.valueOf(e.getMessage())));
@@ -347,6 +350,7 @@ public final class McpServer {
 
         CheckRequest template = new CheckRequest().root(root.toString()).format("llm");
         ProjectState state = new ProjectState(root, template);
+        SelfReport.beginRun("mcp", state.root().toString());
         McpServer server = new McpServer(state, line -> {
             protocolOut.print(line);
             protocolOut.print('\n');

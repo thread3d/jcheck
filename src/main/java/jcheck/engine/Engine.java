@@ -157,6 +157,12 @@ public final class Engine {
     private static TierReport tierReport(CheckOptions opts, boolean anyErrors, int blockingTier,
                                          boolean t3Ran, boolean t4Ran, boolean t5Ran) {
         List<TierReport.Entry> entries = new ArrayList<>();
+        /*
+         * With no sources the run stops before any tier is attempted. Saying "plugin unavailable"
+         * there blamed an analyzer for a configuration problem; the honest reason is the project
+         * had nothing to analyse, and CheckCommand already reports it as a config error.
+         */
+        boolean noSources = opts.sources.isEmpty();
         for (int t = 0; t <= Tier.MAX; t++) {
             boolean enabled = opts.tierEnabled(t);
             boolean ran;
@@ -164,6 +170,9 @@ public final class Engine {
             if (!enabled) {
                 ran = false;
                 note = "not enabled";
+            } else if (noSources) {
+                ran = false;
+                note = "no Java sources";
             } else if (blockingTier <= Tier.T2 && t > blockingTier) {
                 ran = false;
                 note = "compile errors";

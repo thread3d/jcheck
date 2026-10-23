@@ -17,6 +17,7 @@ import jcheck.plugins.PluginClasspath;
 import jcheck.render.RenderOptions;
 import jcheck.render.Renderer;
 import jcheck.render.Renderers;
+import jcheck.selfreport.SelfReport;
 
 /**
  * The check pipeline, shared by the in-process CLI path and the daemon.
@@ -130,6 +131,7 @@ public final class CheckCommand {
     /** Runs the pipeline without rendering, for callers that need the diagnostics themselves. */
     public static Analysis analyze(CheckRequest req) {
         Path root = Path.of(req.root == null ? "." : req.root).toAbsolutePath().normalize();
+        SelfReport.setRoot(root.toString());
 
         JcheckConfig config;
         try {
@@ -186,6 +188,8 @@ public final class CheckCommand {
             } catch (RuntimeException e) {
                 pluginNotes.add("Error Prone is enabled but its plugin jars could not be resolved: "
                     + e.getMessage());
+                SelfReport.toolFailure("Error Prone is enabled but its plugin jars could not be "
+                    + "resolved", e.getMessage());
             }
         }
 
@@ -205,6 +209,8 @@ public final class CheckCommand {
             } catch (RuntimeException e) {
                 pluginNotes.add("the Checker Framework is configured but its jars could not be "
                     + "resolved: " + e.getMessage());
+                SelfReport.toolFailure("the Checker Framework is configured but its jars could not "
+                    + "be resolved", e.getMessage());
             }
         }
 
@@ -227,6 +233,8 @@ public final class CheckCommand {
             } catch (RuntimeException e) {
                 pluginNotes.add("SpotBugs is enabled but its jars could not be resolved: "
                     + e.getMessage());
+                SelfReport.toolFailure("SpotBugs is enabled but its jars could not be resolved",
+                    e.getMessage());
             }
         }
 
@@ -267,11 +275,15 @@ public final class CheckCommand {
 
         try {
             CheckReport report = Engine.run(ob.build());
+            // The finished report is where jcheck states what it could not do; keep that backlog.
+            SelfReport.captureReport(report);
             return new Analysis(report, null);
         } catch (RuntimeException e) {
             if ("1".equals(System.getenv("JCHECK_DEBUG"))) {
                 e.printStackTrace();
             }
+            SelfReport.internalError("jcheck check threw " + e.getClass().getSimpleName()
+                + ": " + describe(e), e);
             return new Analysis(null, "jcheck: internal error: " + describe(e) + "\n");
         } finally {
             if (!req.keepScratch) {

@@ -11,6 +11,7 @@ import jcheck.model.TierReport;
 import jcheck.render.RenderOptions;
 import jcheck.render.Renderer;
 import jcheck.render.Renderers;
+import jcheck.selfreport.SelfReport;
 import jcheck.testharness.MutationRunner;
 
 /**
@@ -50,6 +51,7 @@ public final class MutateCommand {
 
         CheckReport report = new CheckReport(result.diagnostics, List.of(), List.of(),
             mutationTiers(), result.notes, List.of());
+        SelfReport.captureReport(report);
         int maxDiag = req.maxDiagnostics > 0 ? req.maxDiagnostics
             : ("llm".equals(format) ? config.llmMaxDiagnostics : 0);
         int contextLines = req.contextLines >= 0 ? req.contextLines : config.llmContextLines;

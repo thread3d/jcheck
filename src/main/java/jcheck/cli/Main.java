@@ -13,6 +13,8 @@ import jcheck.explain.Explainer;
 import jcheck.init.Initializer;
 import jcheck.lsp.LspServer;
 import jcheck.mcp.McpServer;
+import jcheck.selfreport.IssueLog;
+import jcheck.selfreport.SelfReport;
 
 /** jcheck's single entry point. */
 public final class Main {
@@ -22,7 +24,7 @@ public final class Main {
     public static final Set<String> VALUE_FLAGS = Set.of(
         "root", "message-format", "max-diagnostics", "context-lines", "profile",
         "deny", "warn", "allow", "sources", "classpath", "release", "format",
-        "watch-interval-ms");
+        "watch-interval-ms", "issue-log");
 
     private Main() {
     }
@@ -41,6 +43,29 @@ public final class Main {
         String[] rest = new String[argv.length - 1];
         System.arraycopy(argv, 1, rest, 0, rest.length);
 
+        SelfReport.beginRun(command, rootFrom(rest));
+        configureIssueLog(rest);
+        try {
+            return dispatch(command, rest);
+        } catch (RuntimeException e) {
+            /*
+             * Nothing should escape a command, but if something does it is a jcheck bug, not a
+             * user error. Record it with the stack, say where it went, and keep the exit-code
+             * contract (2 = the tool failed, never "your code is wrong").
+             */
+            SelfReport.internalError("uncaught " + e.getClass().getSimpleName()
+                + " in `jcheck " + command + "`", e);
+            System.err.println("jcheck: internal error: " + describeException(e));
+            String log = IssueLog.locationForMessage();
+            if (log != null) {
+                System.err.println("jcheck: this is a jcheck bug; it was written to " + log
+                    + " — read it with `jcheck issues`");
+            }
+            return CheckCommand.EXIT_TOOL_FAILURE;
+        }
+    }
+
+    private static int dispatch(String command, String[] rest) {
         switch (command) {
             case "help":
             case "--help":
@@ -83,6 +108,8 @@ public final class Main {
                 return emit(runJcstress(rest));
             case "lincheck":
                 return emit(runLincheck(rest));
+            case "issues":
+                return IssuesCommand.run(rest);
             default:
                 System.err.println("jcheck: unknown command '" + command + "'");
                 System.err.print(usage());
@@ -114,6 +141,7 @@ public final class Main {
                     Daemon.spawn(root, 15_000);
                 } catch (IOException e) {
                     System.err.println("jcheck: could not start the daemon: " + e.getMessage());
+                    SelfReport.toolFailure("the warm daemon could not start", e.getMessage());
                 }
             }
             if (DaemonClient.ping(root.toString())) {
@@ -123,9 +151,14 @@ public final class Main {
                 } catch (IOException e) {
                     System.err.println("jcheck: daemon connection failed, falling back in-process: "
                         + e.getMessage());
+                    SelfReport.toolFailure(
+                        "the warm daemon connection failed; the check fell back in-process",
+                        e.getMessage());
                 }
             } else if (requireDaemon) {
                 System.err.println("jcheck: daemon did not come up; running in-process");
+                SelfReport.toolFailure("the warm daemon did not come up",
+                    "--daemon was requested but the daemon never became reachable");
             }
         }
         return CheckCommand.run(req);
@@ -375,6 +408,42 @@ public final class Main {
 
     // ---- helpers ----------------------------------------------------------
 
+    /** The {@code --root} value from raw argv, for the self-report context; "." when absent. */
+    static String rootFrom(String[] args) {
+        for (int i = 0; i < args.length; i++) {
+            if ("--root".equals(args[i]) && i + 1 < args.length) {
+                return args[i + 1];
+            }
+            if (args[i].startsWith("--root=")) {
+                return args[i].substring("--root=".length());
+            }
+        }
+        return ".";
+    }
+
+    /**
+     * Applies {@code --issue-log <path>} / {@code --no-issue-log} before any command runs.
+     * Scanning raw argv (rather than one command's parsed flags) keeps the switch uniform across
+     * every command, including {@code issues} itself.
+     */
+    static void configureIssueLog(String[] args) {
+        for (int i = 0; i < args.length; i++) {
+            if ("--no-issue-log".equals(args[i])) {
+                IssueLog.setOverride("off");
+            } else if (args[i].startsWith("--issue-log=")) {
+                IssueLog.setOverride(args[i].substring("--issue-log=".length()));
+            } else if ("--issue-log".equals(args[i]) && i + 1 < args.length) {
+                IssueLog.setOverride(args[i + 1]);
+            }
+        }
+    }
+
+    /** A message for a failure the user did not cause; never the string "null". */
+    private static String describeException(RuntimeException e) {
+        String message = e.getMessage();
+        return message == null || message.isBlank() ? e.getClass().getName() : message;
+    }
+
     /**
      * {@code jcheck lsp}: a Language Server Protocol bridge on stdio, so an editor gets diagnostics
      * and quick fixes from the same analysis. Like {@code jcheck mcp}, it owns stdin/stdout.
@@ -459,6 +528,7 @@ public final class Main {
             "  infer     Facebook Infer over the project's sources (native binary)",
             "  jcstress  run @JCStressTest concurrency stress tests",
             "  lincheck  run Lincheck @Operation concurrency tests",
+            "  issues    jcheck's own issue log: list | path | clear | add",
             "  version   prints the version",
             "",
             "flags:",
@@ -480,6 +550,8 @@ public final class Main {
             "  --daemon                                require the warm daemon",
             "  --no-daemon                             run in this process",
             "  --watch-interval-ms N                   MCP source-change poll interval (default 1000)",
+            "  --issue-log <path>                      where jcheck records its own issues",
+            "  --no-issue-log                          do not record jcheck's own issues this run",
             "",
             "exit codes: 0 clean, 1 diagnostics at error level, 2 tool or configuration failure",
             "");

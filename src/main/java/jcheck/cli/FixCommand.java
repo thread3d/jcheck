@@ -17,6 +17,7 @@ import jcheck.model.Diagnostic;
 import jcheck.plugins.ErrorProneRunner;
 import jcheck.plugins.OpenRewriteRunner;
 import jcheck.plugins.PluginClasspath;
+import jcheck.selfreport.SelfReport;
 
 /**
  * {@code jcheck fix}: apply machine-applicable suggestions, optionally Error Prone's own patch
@@ -85,6 +86,7 @@ public final class FixCommand {
             notes.addAll(rewritten.notes);
             rewriteChanged.addAll(rewritten.changes);
         }
+        SelfReport.captureNotes(notes);
 
         if (result.applied.isEmpty() && !patched && rewriteChanged.isEmpty()) {
             StringBuilder sb = new StringBuilder("jcheck fix: no machine-applicable suggestions\n");

@@ -39,6 +39,7 @@ Requires a JDK and nothing else — no Gradle, no Maven, no network.
 | `jcheck infer` | Facebook Infer over the project's sources, when the native binary is available. |
 | `jcheck jcstress` | Run `@JCStressTest` classes with the OpenJDK Concurrency Stress Tests. |
 | `jcheck lincheck` | Run Lincheck `@Operation` concurrency tests; linearizability failures become `J1202`. |
+| `jcheck issues` | jcheck's own issue backlog: `list` (markdown), `--json`, `path`, `clear`, `add`. |
 
 Formats: `--message-format=human|json|llm|sarif`.
 Exit codes: `0` clean (warnings allowed unless `--deny-warnings`), `1` diagnostics at error
@@ -113,6 +114,40 @@ see `tests/mcp-sdk-verify/`.
 
 
 
+## Self-report: jcheck's own issue log
+
+jcheck can be wrong too: it can throw, an analyzer that was supposed to run can fail to, and it can
+meet an upstream diagnostic it has no catalog row for. Those are problems with *jcheck*, not with the
+project being checked, and they used to disappear into a `note:` line at the bottom of one run.
+
+While it works, jcheck appends them to a durable log: `issues/self-report.jsonl` in the jcheck
+checkout, or `~/.local/state/jcheck/` for an installed copy. `--issue-log <path>` and
+`$JCHECK_ISSUE_LOG` (or the `jcheck.issue.log` property) override the location; `off` disables it.
+Each entry records its kind, the evidence, the runtime, and a hint naming the kind of fix it wants.
+An identical problem is recorded once, so the file is a backlog rather than telemetry.
+
+```bash
+jcheck issues              # the backlog as markdown, bugs first
+jcheck issues --json       # the raw JSONL, stack traces included
+jcheck issues path         # where the log lives
+jcheck issues add "..."    # record friction by hand; --detail, --kind bug|gap|env|note
+jcheck issues clear        # after the fixes are in
+```
+
+What is captured automatically:
+
+| Kind | Examples |
+| --- | --- |
+| `internal-error` | an unexpected exception, with the full stack trace |
+| `tool-failure` | a tier that was enabled but did not run, an analyzer that crashed or timed out, a runner source missing from this build |
+| `capability-gap` | a diagnostic still on a `J9xxx` fallback code — the catalog curation that is still owed |
+| `environment` | a missing optional binary, an unreachable repository, an unsupported host |
+| `friction` | anything added by hand with `jcheck issues add` |
+
+The log never changes output or an exit code, and a failure to write it is swallowed: it is a note to
+the next session, not part of the diagnostic contract. Nothing is written into the project being
+checked — the log belongs to the tool, like the jar cache. `--no-issue-log` disables it for one run.
+
 ## Design notes worth knowing
 
 **Tiers are enforced, not inherited.** `-XDshould-stop.ifError=FLOW` lets javac continue past
@@ -132,7 +167,7 @@ alone, because tools word the same problem differently. Diagnostics that are the
 only when code, file, line, *and detail lines* match — javac reports one missing type twice, and
 merging on the message alone would have collapsed two genuinely different unresolved names.
 
-**Catalog entries are data.** 216 rows in TSV resources map `(source, source_key)` to a stable
+**Catalog entries are data.** 220 rows in TSV resources map `(source, source_key)` to a stable
 code, tier, curated headline and help lines. Unmapped keys are never dropped: they get a stable
 `J9xxx` code derived from an FNV-1a hash of the key, and are flagged as needing curation.
 
@@ -251,12 +286,12 @@ are under "Out of scope".
   per-session process and source-change subscriptions. See [MCP interface](#mcp-interface).
 - **`init`, `fix`, `explain`, `fmt`, `build`, `test`** — including a JUnit XML parser that lifts
   project stack frames above framework frames.
-- **Tests** — 1415 assertions: unit tests plus 22 rustc-style UI golden cases under
+- **Tests** — 1437 assertions: unit tests plus 23 rustc-style UI golden cases under
   `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output. Set
   `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end analyzer cases (Error Prone, NullAway, the
   Checker Framework, SpotBugs, jcstress, Lincheck, OpenRewrite, the twenty-one-library corpus and
-  `jcheck-junit`), which need downloaded jars; that run has 1535 assertions on JDK 17 and 20, 1532 on
-  21 and 1524 on 25, where an analyzer or corpus library that does not support the JDK is skipped
+  `jcheck-junit`), which need downloaded jars; that run has 1557 assertions on JDK 17 and 20, 1554 on
+  21 and 1546 on 25, where an analyzer or corpus library that does not support the JDK is skipped
   rather than counted green. The counts include the Gradle Tooling API and Maven embedder cases,
   which run when those installations are present and skip otherwise.
 - **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
@@ -302,9 +337,10 @@ explicit.
 
 ## Testing the tool
 
-`./tests/run.sh` builds jcheck and runs the unit tests, the 22 rustc-style UI golden cases and the
-MCP tests; the default suite needs only a JDK, no network. `JCHECK_TEST_PLUGINS=1` adds the
-end-to-end analyzer cases — Error Prone, NullAway, the Checker Framework, SpotBugs, jcstress,
+`./tests/run.sh` builds jcheck and runs the unit tests, the 23 rustc-style UI golden cases and the
+MCP tests; the default suite needs only a JDK, no network. The suite points the self-report log at
+`out/test-issues/` so it can never pollute the checkout's real backlog. `JCHECK_TEST_PLUGINS=1` adds
+the end-to-end analyzer cases — Error Prone, NullAway, the Checker Framework, SpotBugs, jcstress,
 Lincheck, OpenRewrite (Java and Kotlin), the twenty-one-library corpus and `jcheck-junit` — which
 download and cache their jars. The Infer case runs against a native binary when one is present and
 skips otherwise.
@@ -368,8 +404,9 @@ Environment variables, all optional: `JCHECK_CACHE_DIR` moves the cache,
 `JCHECK_MAVEN_INSTALLATION` and `JCHECK_GRADLE_INSTALLATION` point at the Maven and Gradle
 installations the embedder and the Tooling API load their `lib/` from, `JCHECK_INFER` is the Infer
 binary, `JCHECK_TEST_PLUGINS=1` runs the opt-in analyzer and corpus cases,
-`JCHECK_CORPUS_BLESS=1` re-records `tests/corpus/baseline.txt`, and `JCHECK_DEBUG=1` prints a stack
-trace for an internal error.
+`JCHECK_CORPUS_BLESS=1` re-records `tests/corpus/baseline.txt`, `JCHECK_DEBUG=1` prints a stack
+trace for an internal error, and `JCHECK_ISSUE_LOG` relocates (or with `off`, disables) the
+[self-report log](#self-report-jchecks-own-issue-log).
 
 ## Layout
 
@@ -386,9 +423,11 @@ src/main/java/jcheck/
   mcp/         MCP resources-only server, resource providers, warm session state
   plugins/     Maven resolver, forked plugin runner, Error Prone/NullAway integration
   fix/ init/ explain/ testharness/
-src/main/resources/jcheck/catalog/*.tsv   185 catalog rows
+  selfreport/  jcheck's own issue log: Issue, IssueLog, SelfReport
+src/main/resources/jcheck/catalog/*.tsv   220 catalog rows
 support/java/jcheck/support/              jcheck-support annotations, Todo markers, Result
 docs/                                     explain pages
+issues/                                   self-report backlog (JSONL gitignored, README tracked)
 tests/java/                               unit tests and the golden runner
 tests/ui/cases/                           rustc-style golden cases
 tests/mcp-sdk-verify/                     opt-in MCP check against the official SDK

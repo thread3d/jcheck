@@ -21,6 +21,7 @@ import jcheck.plugins.OpenRewriteRunner;
 import jcheck.render.RenderOptions;
 import jcheck.render.Renderer;
 import jcheck.render.Renderers;
+import jcheck.selfreport.SelfReport;
 
 /**
  * {@code jcheck rewrite}: apply the configured OpenRewrite recipes and report each change with a
@@ -99,6 +100,7 @@ public final class RewriteCommand {
         notes.addAll(result.notes);
         CheckReport report = new CheckReport(diagnostics, List.of(), List.of(), rewriteTiers(), notes,
             List.of());
+        SelfReport.captureReport(report);
         int maxDiag = req.maxDiagnostics > 0 ? req.maxDiagnostics
             : ("llm".equals(format) ? config.llmMaxDiagnostics : 0);
         int contextLines = req.contextLines >= 0 ? req.contextLines : config.llmContextLines;

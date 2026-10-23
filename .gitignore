@@ -14,3 +14,7 @@ out/
 
 # Opt-in MCP interoperability check (see tests/mcp-sdk-verify/README.md)
 tests/mcp-sdk-verify/node_modules/
+
+# The self-report log is this checkout's backlog, not source (issues/README.md is tracked)
+issues/*.jsonl
+issues/*.tmp
