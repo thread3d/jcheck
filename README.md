@@ -6,7 +6,7 @@ diagnostics, and a clean check that means something.
 jcheck drives javac in-process, normalizes every finding into one diagnostic model with
 stable codes, gates the result by analysis tier, and renders it for humans, agents and CI.
 
-- **[SPEC.md](SPEC.md)** — specification v0.2 (23 Oct 2026): the delivered scope, and the seven decisions v0.1 left open
+- **[specs/SPEC.md](specs/SPEC.md)** — specification v0.2 (23 Oct 2026): the delivered scope, and the seven decisions v0.1 left open
 - **[docs/](docs/README.md)** — long-form pages behind `jcheck explain <code>`
 
 ## Build, run, test
@@ -429,9 +429,10 @@ src/main/java/jcheck/
   plugins/     Maven resolver, forked plugin runner, Error Prone/NullAway integration
   fix/ init/ explain/ testharness/
   selfreport/  jcheck's own issue log: Issue, IssueLog, SelfReport
-src/main/resources/jcheck/catalog/*.tsv   220 catalog rows
+src/main/resources/jcheck/catalog/*.tsv   228 catalog rows
 support/java/jcheck/support/              jcheck-support annotations, Todo markers, Result
-docs/                                     explain pages
+docs/                                     explain pages (docs/Jxxxx.md)
+specs/                                    the specification (specs/SPEC.md)
 issues/                                   self-report backlog (JSONL gitignored, README tracked)
 tests/java/                               unit tests and the golden runner
 tests/ui/cases/                           rustc-style golden cases
