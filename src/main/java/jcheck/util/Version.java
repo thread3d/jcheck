@@ -12,7 +12,7 @@ package jcheck.util;
 public final class Version {
 
     /** The tool version, in semver form. */
-    public static final String VERSION = "0.2.0";
+    public static final String VERSION = "1.4.0";
 
     /** The specification revision this build implements, quoted by {@code --version}. */
     public static final String SPEC = "0.2";

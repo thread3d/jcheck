@@ -1,0 +1,191 @@
+# CodeWitness requirements for jcheck.
+#
+# specs/SPEC.md states intent and README.md states current behaviour. This file restates the parts
+# that are claims about what the program does, in the shape CodeWitness reads: a stable identifier,
+# the authoritative sentence, and the files the claim is about.
+#
+# Why YAML rather than Markdown: CodeWitness's Markdown reader assigns a requirement's files by
+# scanning the sources for the identifier, and jcheck's sources carry no requirement ids. YAML lets
+# each entry name its files explicitly, which is a fact a reader can check by opening them.
+#
+# Run:
+#   codewitness verify . --requirements specs/requirements.yaml --config specs/codewitness.yaml
+#
+# Ten requirements are executed: specs/codewitness.yaml declares a scenario for each of them and
+# CodeWitness generates, runs and judges the test itself. The other two stay `manual` on purpose -
+# their claim is about the outcome of a whole toolchain invocation whose effect is not a value the
+# caller sees (a fix run that is reverted, an analyzer that declines to run), and a scenario
+# asserted against a helper would be a claim about the helper, not about jcheck. Those two are
+# reported UNVERIFIED, which is the honest verdict for a claim nobody executed.
+
+requirements:
+  - id: JC-001
+    title: A tier that did not run is never reported as a clean tier
+    description: >-
+      A check reports the analysis tiers that actually ran and why the later tiers did not. The
+      tier line names the highest tier reached and states the reason the rest were skipped, so a
+      quiet T3 is never read as a clean T3. Only javac's own errors gate the higher tiers: a
+      lower-tier finding produced by jcheck itself must not silence a higher tier. Executed by
+      scenario SC-TIER-REPORT; also covered by tests/java/jcheck/tests/UnitTests.java
+      (tierAssignTests) and the tier lines in the UI goldens under tests/ui/cases.
+    paths:
+      - src/main/java/jcheck/engine/Engine.java
+      - src/main/java/jcheck/model/TierReport.java
+      - src/main/java/jcheck/engine/TierAssign.java
+
+  - id: JC-002
+    title: Follow-on errors are suppressed by unresolved name, not by position
+    description: >-
+      After an unresolved symbol or package, later diagnostics that only mention the same unresolved
+      name are dropped as cascades. The filter reads javac's symbol and package detail lines and
+      nothing else, so an error that merely contains the word "class" is never dropped. A
+      lower-tier error is never reported as the cause of a higher-tier one, and a syntax-tier
+      diagnostic is never dropped at all. Executed by scenarios SC-CASCADE-DEPENDENT and
+      SC-CASCADE-NEVER-TIER0; also covered by UnitTests.java (cascadeTests).
+    paths:
+      - src/main/java/jcheck/engine/CascadeFilter.java
+
+  - id: JC-003
+    title: Dedupe merges by catalog group and keeps the loser as related
+    description: >-
+      Diagnostics that share a catalog group merge across tools when they collide on location;
+      a diagnostic whose code is its own group merges only when code, file, line and detail lines
+      all match, so two missing symbols on one line stay two findings. The highest-fidelity source
+      survives and the others are retained as related, so merging never loses a finding. Executed
+      by scenarios SC-DEDUPE-SAME-DETAIL and SC-DEDUPE-DIFFERENT-DETAIL; also covered by
+      UnitTests.java (dedupeTests).
+    paths:
+      - src/main/java/jcheck/engine/Dedupe.java
+
+  - id: JC-004
+    title: Catalog codes are stable and an unmapped key is never dropped
+    description: >-
+      Codes are assigned by the pair (source, source_key) from TSV data under
+      src/main/resources/jcheck/catalog, and an assigned code keeps its meaning: a mapped key
+      always resolves to the same code, and several upstream keys may share one code as aliases of
+      one defect. Rows follow the documented nine-column layout (source, source_key, code, tier,
+      headline, label, group, help, doc); a row with fewer than four fields is rejected with the
+      resource name and line number. An upstream key with no row still receives a deterministic
+      J9xxx code derived by FNV-1a from the source and key, and the gap is logged once per key for
+      curation, so no diagnostic is dropped. Executed by scenario SC-CATALOG-LOOKUP; also covered
+      by UnitTests.java (catalogTests).
+    paths:
+      - src/main/java/jcheck/catalog/Catalog.java
+      - src/main/resources/jcheck/catalog/javac.tsv
+      - src/main/resources/jcheck/catalog/errorprone.tsv
+      - src/main/resources/jcheck/catalog/nullaway.tsv
+      - src/main/resources/jcheck/catalog/checker.tsv
+      - src/main/resources/jcheck/catalog/spotbugs.tsv
+      - src/main/resources/jcheck/catalog/openrewrite.tsv
+      - src/main/resources/jcheck/catalog/jcheck.tsv
+
+  - id: JC-005
+    title: A suppression or unsafe region must carry a written reason
+    description: >-
+      A suppression or an unsafe region with no written reason is reported as J0003 at T2, and a
+      suppression whose code is "all" suppresses nothing, so there is no blanket "disable
+      everything". The rule covers a SuppressJcheck or Unsafe annotation with a blank reason and a
+      SuppressWarnings naming an analyzer (NullAway, ErrorProne, SpotBugs, CheckerFramework,
+      jcheck) or a Jxxxx code without one. Executed by scenario SC-SUPPRESSION-NEEDS-REASON, which
+      runs the real CLI over a source carrying @SuppressWarnings("NullAway") and reads J0003 back;
+      also covered by UnitTests.java (catalogTests).
+    paths:
+      - src/main/java/jcheck/engine/SuppressionNeedsReasonCheck.java
+      - src/main/java/jcheck/engine/UnsafeOutsideUnsafeCheck.java
+      - support/java/jcheck/support/SuppressJcheck.java
+      - support/java/jcheck/support/Unsafe.java
+
+  - id: JC-006
+    title: Exit codes separate a code defect from a tool failure
+    description: >-
+      check exits 0 when nothing failed (warnings are allowed unless --deny-warnings is given), 1
+      when at least one diagnostic is at error level, and 2 for a tool or configuration failure.
+      Exit 2 is never used to mean that the checked code is wrong. Executed by scenarios
+      SC-EXIT-CLEAN and SC-EXIT-ERROR; the tool-failure case is covered by the cmd/expected.txt
+      pairs in tests/ui/cases.
+    paths:
+      - src/main/java/jcheck/cli/Main.java
+      - src/main/java/jcheck/cli/CheckCommand.java
+
+  - id: JC-007
+    title: The four renderers render one diagnostic model
+    description: >-
+      The human, json, llm and sarif formats are all produced from the same report model, so a
+      finding cannot appear in one format and vanish from another. json is JSON Lines with a final
+      summary object; sarif carries the same diagnostics for CI; llm output is deterministic,
+      contains no ANSI escapes, and ends with the jcheck summary line. Executed by scenario
+      SC-RENDERERS-AGREE; also covered by UnitTests.java (rendererTests, jsonTests, sarifTests).
+    paths:
+      - src/main/java/jcheck/render/HumanRenderer.java
+      - src/main/java/jcheck/render/JsonRenderer.java
+      - src/main/java/jcheck/render/LlmRenderer.java
+      - src/main/java/jcheck/render/SarifRenderer.java
+      - src/main/java/jcheck/model/CheckReport.java
+
+  - id: JC-008
+    title: An automated fix is reverted when it makes the result worse
+    description: >-
+      fix and rewrite snapshot the sources before editing, re-check afterwards, and revert when the
+      error count rose, reporting the revert instead of leaving the damage in place. A fix run
+      therefore cannot leave a project worse than it found it. Covered by UnitTests.java
+      (fixApplierTests) and the suggestion round-trip assertions; not executed by CodeWitness,
+      because the claim is about a snapshot, a re-check and a revert, which is a run rather than an
+      expression.
+    paths:
+      - src/main/java/jcheck/cli/FixCommand.java
+      - src/main/java/jcheck/fix/FixApplier.java
+    manual: true
+
+  - id: JC-009
+    title: Cache state is never written into the project being checked
+    description: >-
+      Resolver and incremental-cache entries live under the jcheck cache directory - the
+      cache.dir property, then JCHECK_CACHE_DIR, then ~/.cache/jcheck - and never inside the served
+      project. The daemon's socket is keyed by a hash of the project root, so serving a project
+      writes nothing into it. Executed by scenario SC-CACHE-STAYS-OUT, which runs a check twice
+      against a temporary project and compares the file set afterwards; also covered by
+      UnitTests.java (daemonTests, incrementalPlanTests).
+    paths:
+      - src/main/java/jcheck/build/IncrementalCache.java
+      - src/main/java/jcheck/daemon/Daemon.java
+      - src/main/java/jcheck/daemon/DaemonClient.java
+
+  - id: JC-010
+    title: The MCP server exposes resources and never advertises a tool
+    description: >-
+      jcheck mcp serves resources only: a tools/list request is answered with an empty array, so a
+      host cannot call a second interface that duplicates the CLI. The jcheck://capabilities
+      resource states which tiers ran and where the guarantee ends, and derives "catalogued but not
+      implemented" from the implemented-check lists rather than restating it. Executed by scenario
+      SC-MCP-RESOURCES-ONLY; also covered by tests/java/jcheck/tests/McpTests.java.
+    paths:
+      - src/main/java/jcheck/mcp/McpServer.java
+      - src/main/java/jcheck/mcp/McpResources.java
+      - src/main/java/jcheck/engine/NativeChecks.java
+
+  - id: JC-011
+    title: An analyzer that cannot run is reported as not run
+    description: >-
+      SpotBugs with no class files, Infer with no binary, Lincheck with class files newer than it
+      can read, and an analyzer the running JDK does not support are each reported as not run with
+      the reason on the tier line. None of them is reported as a quiet pass. Covered by
+      UnitTests.java (corpusTests, lincheckParseTests, inferIntegrationTests) and the tier lines in
+      the UI goldens; not executed by CodeWitness, because the claim is about what a run says when
+      a tool declines to run.
+    paths:
+      - src/main/java/jcheck/plugins/SpotBugsRunner.java
+      - src/main/java/jcheck/plugins/InferRunner.java
+      - src/main/java/jcheck/engine/Engine.java
+    manual: true
+
+  - id: JC-012
+    title: Build-output names are pruned only where they name output
+    description: >-
+      Directory names that mean build output are pruned only at the top level of a bare
+      project-root fallback and in module discovery; inside a declared source root only hidden and
+      VCS directories are skipped. A package named build is therefore a source package, not
+      something that silently disappears from the analysis. Executed by scenario
+      SC-BUILDMODEL-PACKAGE-NAMED-BUILD; also covered by UnitTests.java (sourceScanTests,
+      buildModelTests).
+    paths:
+      - src/main/java/jcheck/build/BuildModel.java

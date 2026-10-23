@@ -12,6 +12,12 @@
 # Build output (build.sh writes here; nothing under out/ is source)
 out/
 
+# Maven output from the verification-only descriptor in pom.xml (see the comment there)
+target/
+
+# CodeWitness run data (reports, sandbox copies) from `codewitness verify`
+.codewitness/
+
 # Opt-in MCP interoperability check (see tests/mcp-sdk-verify/README.md)
 tests/mcp-sdk-verify/node_modules/
 

@@ -20,6 +20,11 @@ Requires a JDK and nothing else — no Gradle, no Maven, no network.
 ./tests/run.sh --bless     # regenerate UI golden files (read the diff first)
 ```
 
+`pom.xml` is not jcheck's build. It exists so an external verifier can compile the tree and run the
+scenarios declared in [specs/codewitness.yaml](specs/codewitness.yaml); it adds no compile or runtime
+dependency, and its test-scoped JUnit dependency exists only for tests a verifier generates.
+`build.sh` and `tests/run.sh` remain the build and the suite.
+
 ## Commands
 
 | Command | What it does |
@@ -376,6 +381,34 @@ come up afterwards). Every catalog entry is checked to have an implementation, e
 machine-applicable suggestion is applied and re-checked, and the incremental planner is tested for
 the body-change, API-change and classpath-change rules.
 
+### Independent verification
+
+`tests/run.sh` proves what jcheck asserts about itself. CodeWitness reads the same tree without
+trusting that suite: `specs/requirements.yaml` states twelve behavioural claims with the files each
+one is about, and `specs/codewitness.yaml` declares a scenario for ten of them. CodeWitness generates
+a JUnit test from each scenario, runs it against the real classes, and reports what it observed.
+
+```bash
+codewitness verify . --requirements specs/requirements.yaml --config specs/codewitness.yaml
+```
+
+As of 1.4.0 that run reports **10 VERIFIED, 2 UNVERIFIED, 0 FAILED**. Each verdict cites the executed
+generated test and the obligation it discharged, so it is evidence rather than an opinion. The
+asymmetry matters: CodeWitness treats a *passing existing test* as weak evidence by design, because
+tests written by the same process that wrote the code are not independent verification. jcheck's own
+1465 assertions can therefore never make a requirement VERIFIED; only an experiment the verifier runs
+can. That is why the scenarios call `CascadeFilter`, `Dedupe`, `Catalog`, `TierReport`, the four
+renderers, the CLI and the MCP server instead of asserting that they exist.
+
+Two claims stay UNVERIFIED on purpose: `JC-008` (a fix run is reverted when the error count rises) and
+`JC-011` (an analyzer that cannot run is reported as not run). Their truth is the outcome of a whole
+toolchain invocation whose effect is not a value the caller sees, and a scenario asserted against a
+helper would verify the helper. They are declared `manual` with that reason in
+`specs/requirements.yaml`.
+
+`src/test/java/jcheck/verify/` is the test root it needs and holds no jcheck tests; the tests a run
+generates are removed when it finishes.
+
 ## Environment
 
 Built and tested on **JDK 17, 20, 21 and 25**, all installed under the workspace's `tools/`
@@ -432,7 +465,11 @@ src/main/java/jcheck/
 src/main/resources/jcheck/catalog/*.tsv   228 catalog rows
 support/java/jcheck/support/              jcheck-support annotations, Todo markers, Result
 docs/                                     explain pages (docs/Jxxxx.md)
-specs/                                    the specification (specs/SPEC.md)
+specs/SPEC.md                             the specification
+specs/requirements.yaml                   behavioural claims, files, and which are executed
+specs/codewitness.yaml                    scenarios an independent verifier runs
+pom.xml                                   verification-only Maven descriptor (no dependencies)
+src/test/java/jcheck/verify/              test root a verifier writes generated tests into
 issues/                                   self-report backlog (JSONL gitignored, README tracked)
 tests/java/                               unit tests and the golden runner
 tests/ui/cases/                           rustc-style golden cases

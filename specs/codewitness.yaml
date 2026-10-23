@@ -1,0 +1,338 @@
+# CodeWitness run configuration for jcheck.
+#
+#   codewitness verify . --requirements specs/requirements.yaml --config specs/codewitness.yaml
+#
+# jcheck's own build is ./build.sh and its own suite is tests/run.sh (a hand-written harness, not
+# JUnit). CodeWitness can only execute an obligation it can drive, so this file declares scenarios:
+# each one names the Java the verifier should run and the invariant that must hold afterwards.
+# CodeWitness turns a scenario into a JUnit test in src/test/java/jcheck/verify, runs it, and
+# reports the result as evidence - it does not take jcheck's word for any of it.
+#
+# A scenario is only declared where the claim can be decided by calling the real code. Requirements
+# it cannot decide (J0003 suppression handling, fix reversion, cache placement, analyzer honesty in
+# the tier line) stay manual in specs/requirements.yaml and are reported UNVERIFIED, not passed.
+
+project:
+  name: jcheck
+
+language:
+  adapter: java
+
+verification:
+  # jcheck's suite extracts and analyses real open-source projects when JCHECK_TEST_PLUGINS is set,
+  # so a short budget would truncate rather than verify.
+  max_duration: 20m
+  max_generated_tests: 60
+
+tests:
+  enabled: true
+
+static_analysis:
+  enabled: true
+
+security:
+  enabled: true
+
+report:
+  html: true
+  json: true
+  keep_generated_tests: false
+
+scenarios:
+  # ---------------------------------------------------------------- JC-001 tier honesty
+  - id: SC-TIER-REPORT
+    requirement: JC-001
+    description: The reached tier is the highest that ran, and a skipped tier carries its reason
+    mode: single
+    setup: >-
+      jcheck.model.TierReport tiers = new jcheck.model.TierReport(java.util.List.of(
+      new jcheck.model.TierReport.Entry(0, true, ""),
+      new jcheck.model.TierReport.Entry(1, true, ""),
+      new jcheck.model.TierReport.Entry(2, true, ""),
+      new jcheck.model.TierReport.Entry(3, false, "javac errors stopped the compile")), true);
+    steps:
+      - call: "int reached = tiers.reached();"
+    observation: "tiers.reached()"
+    invariant: >-
+      tiers.reached() == 2
+      && !tiers.entries().get(3).ran()
+      && tiers.entries().get(3).note().contains("javac errors")
+
+  # ---------------------------------------------------------------- JC-002 cascade suppression
+  - id: SC-CASCADE-DEPENDENT
+    requirement: JC-002
+    description: An error that only mentions an already-unresolved symbol is dropped
+    mode: single
+    setup: >-
+      jcheck.model.Diagnostic root = jcheck.model.Diagnostic.builder("J0205").source("javac")
+      .sourceKey("compiler.err.cant.resolve.location").level(jcheck.model.Level.ERROR)
+      .tier(jcheck.model.Tier.T1).seq(0).message("cannot find symbol")
+      .raw("cannot find symbol\n  symbol:   class Missing\n  location: class demo.U")
+      .note("symbol:   class Missing")
+      .primary(new jcheck.model.Span("U.java", 5, 9, 5, 16)).build();
+      jcheck.model.Diagnostic dependent = jcheck.model.Diagnostic.builder("J0210").source("javac")
+      .sourceKey("compiler.err.incompatible.types").level(jcheck.model.Level.ERROR)
+      .tier(jcheck.model.Tier.T1).seq(1)
+      .message("incompatible types: Missing cannot be converted to String")
+      .primary(new jcheck.model.Span("U.java", 6, 16, 6, 30)).build();
+      jcheck.model.Diagnostic unrelated = jcheck.model.Diagnostic.builder("J0210").source("javac")
+      .sourceKey("compiler.err.incompatible.types").level(jcheck.model.Level.ERROR)
+      .tier(jcheck.model.Tier.T1).seq(2)
+      .message("incompatible types: int cannot be converted to String")
+      .primary(new jcheck.model.Span("U.java", 7, 16, 7, 30)).build();
+      java.util.List<jcheck.model.Diagnostic> in = java.util.List.of(root, dependent, unrelated);
+    steps:
+      - call: "jcheck.engine.CascadeFilter.Result r = jcheck.engine.CascadeFilter.apply(in);"
+    observation: "r.kept.size() + \" kept, \" + r.dropped.size() + \" dropped\""
+    invariant: >-
+      r.kept.size() == 2 && r.dropped.size() == 1
+      && r.dropped.get(0).message().contains("Missing")
+
+  - id: SC-CASCADE-NEVER-TIER0
+    requirement: JC-002
+    description: A syntax-tier diagnostic is never dropped as a cascade
+    mode: single
+    setup: >-
+      jcheck.model.Diagnostic root = jcheck.model.Diagnostic.builder("J0205").source("javac")
+      .sourceKey("compiler.err.cant.resolve.location").level(jcheck.model.Level.ERROR)
+      .tier(jcheck.model.Tier.T1).seq(0).message("cannot find symbol")
+      .raw("cannot find symbol\n  symbol:   class Missing\n  location: class demo.U")
+      .note("symbol:   class Missing")
+      .primary(new jcheck.model.Span("U.java", 5, 9, 5, 16)).build();
+      jcheck.model.Diagnostic other = jcheck.model.Diagnostic.builder("J0210").source("javac")
+      .sourceKey("compiler.err.incompatible.types").level(jcheck.model.Level.ERROR)
+      .tier(jcheck.model.Tier.T0).seq(4)
+      .message("incompatible types: Missing cannot be converted to String")
+      .primary(new jcheck.model.Span("S.java", 5, 1, 5, 4)).build();
+      java.util.List<jcheck.model.Diagnostic> in = java.util.List.of(root, other);
+    steps:
+      - call: "jcheck.engine.CascadeFilter.Result r = jcheck.engine.CascadeFilter.apply(in);"
+    observation: "r.dropped.size()"
+    invariant: "r.kept.contains(other) && r.dropped.isEmpty()"
+
+  # ---------------------------------------------------------------- JC-003 note-aware dedupe
+  - id: SC-DEDUPE-SAME-DETAIL
+    requirement: JC-003
+    description: Two diagnostics with the same code, location and detail merge, and the loser is kept
+    mode: single
+    setup: >-
+      jcheck.model.Diagnostic a = jcheck.model.Diagnostic.builder("J0205").source("javac")
+      .sourceKey("compiler.err.cant.resolve.location").level(jcheck.model.Level.ERROR)
+      .tier(jcheck.model.Tier.T1).seq(0).message("cannot find symbol")
+      .raw("cannot find symbol\n  symbol:   class Missing\n  location: class demo.U")
+      .note("symbol:   class Missing")
+      .primary(new jcheck.model.Span("U.java", 5, 9, 5, 16)).build();
+      jcheck.model.Diagnostic b = jcheck.model.Diagnostic.builder("J0205").source("javac")
+      .sourceKey("compiler.err.cant.resolve.location").level(jcheck.model.Level.ERROR)
+      .tier(jcheck.model.Tier.T1).seq(1).message("cannot find symbol")
+      .note("symbol:   class Missing")
+      .primary(new jcheck.model.Span("U.java", 5, 25, 5, 32)).build();
+    steps:
+      - call: >-
+          java.util.List<jcheck.model.Diagnostic> merged =
+          jcheck.engine.Dedupe.apply(java.util.List.of(a, b), jcheck.catalog.Catalog.loadDefault());
+    observation: "merged.size()"
+    invariant: "merged.size() == 1 && merged.get(0).related().size() == 1"
+
+  - id: SC-DEDUPE-DIFFERENT-DETAIL
+    requirement: JC-003
+    description: Two diagnostics that name different symbols do not merge
+    mode: single
+    setup: >-
+      jcheck.model.Diagnostic a = jcheck.model.Diagnostic.builder("J0205").source("javac")
+      .sourceKey("compiler.err.cant.resolve.location").level(jcheck.model.Level.ERROR)
+      .tier(jcheck.model.Tier.T1).seq(0).message("cannot find symbol")
+      .raw("cannot find symbol\n  symbol:   class Missing\n  location: class demo.U")
+      .note("symbol:   class Missing")
+      .primary(new jcheck.model.Span("U.java", 5, 9, 5, 16)).build();
+      jcheck.model.Diagnostic c = jcheck.model.Diagnostic.builder("J0205").source("javac")
+      .sourceKey("compiler.err.cant.resolve.location").level(jcheck.model.Level.ERROR)
+      .tier(jcheck.model.Tier.T1).seq(2).message("cannot find symbol")
+      .note("symbol:   class Other")
+      .primary(new jcheck.model.Span("U.java", 5, 25, 5, 32)).build();
+    steps:
+      - call: >-
+          java.util.List<jcheck.model.Diagnostic> kept =
+          jcheck.engine.Dedupe.apply(java.util.List.of(a, c), jcheck.catalog.Catalog.loadDefault());
+    observation: "kept.size()"
+    invariant: "kept.size() == 2"
+
+  # ---------------------------------------------------------------- JC-004 catalog mapping
+  - id: SC-CATALOG-LOOKUP
+    requirement: JC-004
+    description: A mapped key keeps its code, and an unmapped key gets the stable J9xxx fallback
+    mode: single
+    setup: "jcheck.catalog.Catalog catalog = jcheck.catalog.Catalog.loadDefault();"
+    steps:
+      - call: "String mapped = catalog.codeFor(\"javac\", \"compiler.err.not.exhaustive.statement\");"
+    observation: "mapped + \" / \" + catalog.codeFor(\"javac\", \"no.such.upstream.key\")"
+    invariant: >-
+      mapped.equals("J0201")
+      && catalog.codeFor("javac", "no.such.upstream.key").startsWith("J9")
+      && catalog.codeFor("javac", "no.such.upstream.key")
+         .equals(jcheck.catalog.Catalog.fallbackCode("javac", "no.such.upstream.key"))
+      && catalog.lookupCode("J0201") != null
+      && catalog.lookupCode("J0201").sourceKey().equals("compiler.err.not.exhaustive.statement")
+
+  # ---------------------------------------------------------------- JC-005 suppression needs a reason
+  - id: SC-SUPPRESSION-NEEDS-REASON
+    requirement: JC-005
+    description: A suppression with no written reason is reported as J0003 and fails the check
+    mode: single
+    setup: >-
+      java.nio.file.Path tmp = java.nio.file.Files.createTempDirectory("cw-jc005-");
+      java.nio.file.Path src = tmp.resolve("src/main/java/demo");
+      java.nio.file.Files.createDirectories(src);
+      java.nio.file.Files.writeString(src.resolve("Quiet.java"),
+      "package demo;\npublic final class Quiet {\n    @SuppressWarnings(\"NullAway\")\n"
+      + "    public static String hello() {\n        return \"x\";\n    }\n}\n");
+      java.io.ByteArrayOutputStream captured = new java.io.ByteArrayOutputStream();
+      java.io.PrintStream previousOut = System.out;
+      System.setOut(new java.io.PrintStream(captured, true, "UTF-8"));
+      int code = jcheck.cli.Main.run(new String[] {
+      "check", "--root", tmp.toString(), "--no-daemon", "--message-format=json" });
+      System.setOut(previousOut);
+      String transcript = captured.toString(java.nio.charset.StandardCharsets.UTF_8);
+    steps:
+      - call: "boolean reported = transcript.contains(\"J0003\");"
+    observation: "transcript.length()"
+    invariant: "reported && code == 1"
+
+  # ---------------------------------------------------------------- JC-006 exit codes
+  - id: SC-EXIT-CLEAN
+    requirement: JC-006
+    description: A project with no diagnostic exits 0
+    mode: single
+    setup: >-
+      java.nio.file.Path tmp = java.nio.file.Files.createTempDirectory("cw-jc006-clean-");
+      java.nio.file.Path src = tmp.resolve("src/main/java/demo");
+      java.nio.file.Files.createDirectories(src);
+      java.nio.file.Files.writeString(src.resolve("Good.java"),
+      "package demo;\npublic final class Good {\n    public static int answer() {\n        return 42;\n    }\n}\n");
+    steps:
+      - call: >-
+          int code = jcheck.cli.Main.run(new String[] {
+          "check", "--root", tmp.toString(), "--no-daemon", "--message-format=human" });
+    observation: "code"
+    invariant: "code == 0"
+
+  - id: SC-EXIT-ERROR
+    requirement: JC-006
+    description: A project with a compile error exits 1, not 2
+    mode: single
+    setup: >-
+      java.nio.file.Path tmp = java.nio.file.Files.createTempDirectory("cw-jc006-error-");
+      java.nio.file.Path src = tmp.resolve("src/main/java/demo");
+      java.nio.file.Files.createDirectories(src);
+      java.nio.file.Files.writeString(src.resolve("Bad.java"),
+      "package demo;\npublic final class Bad {\n    void f( { }\n}\n");
+    steps:
+      - call: >-
+          int code = jcheck.cli.Main.run(new String[] {
+          "check", "--root", tmp.toString(), "--no-daemon", "--message-format=human" });
+    observation: "code"
+    invariant: "code == 1"
+
+  # ---------------------------------------------------------------- JC-007 one model, four renderers
+  - id: SC-RENDERERS-AGREE
+    requirement: JC-007
+    description: All four renderers report the same diagnostic, and LLM output carries no ANSI escapes
+    mode: single
+    setup: >-
+      jcheck.model.Diagnostic d = jcheck.model.Diagnostic.builder("J0706").source("jcheck")
+      .sourceKey("LocalCanBeFinal").level(jcheck.model.Level.WARNING).tier(jcheck.model.Tier.T3)
+      .message("local variable `x` can be `final`")
+      .primary(new jcheck.model.Span("Foo.java", 3, 9, 3, 18)).build();
+      jcheck.model.CheckReport report = new jcheck.model.CheckReport(
+      java.util.List.of(d), java.util.List.of(), java.util.List.of(),
+      new jcheck.model.TierReport(
+      java.util.List.of(new jcheck.model.TierReport.Entry(3, true, "")), false),
+      java.util.List.of(), java.util.List.of());
+      String human = new jcheck.render.HumanRenderer().render(report, jcheck.render.RenderOptions.defaults());
+      String json = new jcheck.render.JsonRenderer().render(report, jcheck.render.RenderOptions.defaults());
+      String llm = new jcheck.render.LlmRenderer().render(report, jcheck.render.RenderOptions.forFormat("llm"));
+      String sarif = new jcheck.render.SarifRenderer().render(report, jcheck.render.RenderOptions.defaults());
+    steps:
+      - call: "java.util.List<String> outs = java.util.List.of(human, json, llm, sarif);"
+    observation: "outs.size()"
+    invariant: >-
+      outs.stream().allMatch(s -> s.contains("J0706"))
+      && json.contains("\"code\":\"J0706\"")
+      && !llm.contains("\u001b[")
+
+  # ---------------------------------------------------------------- JC-010 MCP has no tools
+  - id: SC-MCP-RESOURCES-ONLY
+    requirement: JC-010
+    description: tools/list is answered with an empty array, so no tool is advertised
+    mode: single
+    setup: >-
+      java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+      jcheck.mcp.ProjectState ps = new jcheck.mcp.ProjectState(
+      java.nio.file.Files.createTempDirectory("cw-jc010-"), new jcheck.cli.CheckRequest());
+      jcheck.mcp.McpServer server = new jcheck.mcp.McpServer(ps,
+      line -> { out.writeBytes(line.getBytes(java.nio.charset.StandardCharsets.UTF_8)); out.write(10); },
+      null, 100);
+      server.run(new java.io.ByteArrayInputStream(("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\","
+      + "\"params\":{\"protocolVersion\":\"2025-06-18\"}}\n"
+      + "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}\n")
+      .getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+      server.close();
+      String transcript = out.toString(java.nio.charset.StandardCharsets.UTF_8);
+    steps:
+      - call: "int length = transcript.length();"
+    observation: "length"
+    invariant: >-
+      transcript.contains("\"tools\":[]")
+      && !transcript.contains("\"tools\":[{")
+
+  # ---------------------------------------------------------------- JC-009 cache placement
+  - id: SC-CACHE-STAYS-OUT
+    requirement: JC-009
+    description: Two check runs leave the checked project's files exactly as they were
+    mode: single
+    setup: >-
+      java.nio.file.Path tmp = java.nio.file.Files.createTempDirectory("cw-jc009-proj-");
+      java.nio.file.Path cache = java.nio.file.Files.createTempDirectory("cw-jc009-cache-");
+      java.nio.file.Files.createDirectories(tmp.resolve("src/main/java/demo"));
+      java.nio.file.Files.writeString(tmp.resolve("src/main/java/demo/Good.java"),
+      "package demo;\npublic final class Good {\n    public static int answer() {\n        return 42;\n    }\n}\n");
+      String previousCache = System.getProperty("jcheck.cache.dir");
+      System.setProperty("jcheck.cache.dir", cache.toString());
+      java.util.Set<String> before = java.nio.file.Files.walk(tmp)
+      .filter(java.nio.file.Files::isRegularFile)
+      .map(p -> tmp.relativize(p).toString())
+      .collect(java.util.stream.Collectors.toSet());
+      int first = jcheck.cli.Main.run(new String[] {
+      "check", "--root", tmp.toString(), "--no-daemon", "--message-format=json" });
+      int second = jcheck.cli.Main.run(new String[] {
+      "check", "--root", tmp.toString(), "--no-daemon", "--message-format=json" });
+      java.util.Set<String> after = java.nio.file.Files.walk(tmp)
+      .filter(java.nio.file.Files::isRegularFile)
+      .map(p -> tmp.relativize(p).toString())
+      .collect(java.util.stream.Collectors.toSet());
+      System.setProperty("jcheck.cache.dir", previousCache == null ? "" : previousCache);
+    steps:
+      - call: "boolean unchanged = before.equals(after);"
+    observation: "before.size() + \" -> \" + after.size()"
+    invariant: >-
+      unchanged && before.contains("src/main/java/demo/Good.java")
+
+  # ---------------------------------------------------------------- JC-012 source discovery
+  - id: SC-BUILDMODEL-PACKAGE-NAMED-BUILD
+    requirement: JC-012
+    description: A package named build under a declared source root is source, not output
+    mode: single
+    setup: >-
+      java.nio.file.Path tmp = java.nio.file.Files.createTempDirectory("cw-jc012-");
+      java.nio.file.Path pkg = tmp.resolve("src/main/java/org/example/build");
+      java.nio.file.Files.createDirectories(pkg);
+      java.nio.file.Files.writeString(pkg.resolve("Thing.java"),
+      "package org.example.build;\npublic final class Thing {}\n");
+      jcheck.config.JcheckConfig config = jcheck.config.JcheckConfig.load(tmp);
+      jcheck.build.BuildModel model = jcheck.build.BuildModel.resolve(tmp, config, null, null, null, null);
+    steps:
+      - call: >-
+          boolean sawThing = model.sources.stream()
+          .anyMatch(p -> p.getFileName().toString().equals("Thing.java"));
+    observation: "model.sources.size()"
+    invariant: "sawThing && model.sources.size() == 1"
