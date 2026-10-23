@@ -6,7 +6,7 @@ diagnostics, and a clean check that means something.
 jcheck drives javac in-process, normalizes every finding into one diagnostic model with
 stable codes, gates the result by analysis tier, and renders it for humans, agents and CI.
 
-- **[SPEC.md](SPEC.md)** — specification v0.1 (12 Oct 2026)
+- **[SPEC.md](SPEC.md)** — specification v0.2 (23 Oct 2026): the delivered scope, and the seven decisions v0.1 left open
 - **[docs/](docs/README.md)** — long-form pages behind `jcheck explain <code>`
 
 ## Build, run, test
@@ -172,7 +172,7 @@ alone, because tools word the same problem differently. Diagnostics that are the
 only when code, file, line, *and detail lines* match — javac reports one missing type twice, and
 merging on the message alone would have collapsed two genuinely different unresolved names.
 
-**Catalog entries are data.** 220 rows in TSV resources map `(source, source_key)` to a stable
+**Catalog entries are data.** 228 rows in TSV resources map `(source, source_key)` to a stable
 code, tier, curated headline and help lines. Unmapped keys are never dropped: they get a stable
 `J9xxx` code derived from an FNV-1a hash of the key, and are flagged as needing curation.
 
@@ -291,14 +291,14 @@ are under "Out of scope".
   per-session process and source-change subscriptions. See [MCP interface](#mcp-interface).
 - **`init`, `fix`, `explain`, `fmt`, `build`, `test`** — including a JUnit XML parser that lifts
   project stack frames above framework frames.
-- **Tests** — 1437 assertions: unit tests plus 23 rustc-style UI golden cases under
+- **Tests** — 1465 assertions on JDK 20: unit tests plus 23 rustc-style UI golden cases under
   `tests/ui/cases/`. A strict hand-written JSON validator checks the JSON and SARIF output. Set
   `JCHECK_TEST_PLUGINS=1` to opt into the end-to-end analyzer cases (Error Prone, NullAway, the
   Checker Framework, SpotBugs, jcstress, Lincheck, OpenRewrite, the twenty-one-library corpus and
   `jcheck-junit`), which need downloaded jars; that run has 1557 assertions on JDK 17 and 20, 1554 on
   21 and 1546 on 25, where an analyzer or corpus library that does not support the JDK is skipped
-  rather than counted green. The counts include the Gradle Tooling API and Maven embedder cases,
-  which run when those installations are present and skip otherwise.
+  rather than counted green. The Gradle Tooling API and Maven embedder cases add their assertions
+  when those installations are present and skip otherwise.
 - **`jcheck-support`** — a small companion artifact with the annotations the pack recognizes
   (`@Checked`, `@ThreadSafe`, `@GuardedBy`, `@Unsafe`, `@Immutable`, `@SuppressJcheck`), the
   `Todo()`/`Unreachable()`/`Unimplemented()` markers behind J0902, and a sealed `Result` type.
@@ -327,8 +327,8 @@ Features that work, within stated bounds. Each entry says what holds and what do
 
 ## Out of scope
 
-Not commitments of this project: SPEC.md names Gradle and Maven only for the build model, and open
-decision 6 leaves Kotlin and Scala in mixed projects out of scope for v0.1. Listed so the boundary is
+Not commitments of this project: SPEC.md names Gradle and Maven only for the build model, and
+decision 6 settles Kotlin and Scala in mixed projects as out of scope. Listed so the boundary is
 explicit.
 
 - **Build models for Bazel, sbt or Ant.**

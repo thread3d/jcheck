@@ -1,6 +1,11 @@
 # jcheck: a Rust-style feedback layer for Java
 
-Specification v0.1 · 12 Oct 2026 · @Julian Roland Parramore
+Specification v0.2 · 23 Oct 2026 · @Julian Roland Parramore
+
+v0.1 was the design. v0.2 records what shipping settled: the milestones are delivered, six of the
+seven open questions are answered, and sentences that contradicted the implementation have been
+corrected rather than left to age. The sections still state intent — `README.md` is the inventory of current
+behaviour, and the counts for catalog rows, codes and tests live there, because they drift.
 
 ## Goal and scope
 
@@ -175,7 +180,7 @@ Spans come from `Diagnostic.getStartPosition` and `getEndPosition`. `applicabili
 
 ### Codes and catalog
 
-- Codes are stable forever, assigned by a catalog table `(source, source_key)` to code. Unmapped upstream diagnostics get a `J9xxx` code derived from a hash of the key and are logged for catalog curation; they are never dropped.
+- Codes are stable forever, assigned by a catalog table `(source, source_key)` to code. Unmapped upstream diagnostics get a `J9xxx` code derived from a hash of the key and are never dropped; they are also logged for catalog curation, **one log entry per upstream key**, because the gap is the missing row and not each site that produced it.
 - Catalog entries are data files, not code. They supply a better headline, a label for the span, `help:` lines, and a link to `docs/<code>.md`.
 - For famously unhelpful javac messages (generic inference failures, cannot find symbol with a near miss) the catalog rewrites using the compiler's own diagnostic arguments and symbol table: nearest identifiers, expected versus actual types in plain form.
 - `jcheck explain J0201` prints the long form: why it matters, a failing example, a fixed example.
@@ -354,7 +359,7 @@ A single stable command and a stable output format are what make the loop reliab
 
 The false-positive corpus is the gate that decides whether a rule may be set to deny.
 
-1. **UI tests, rustc-style:** `tests/ui/**/*.java` with golden `*.stderr` files (human format) and expected JSON for a subset. Every code has a failing case, a passing case, and a tricky case (generics, lambdas, switch patterns, try/finally, inner classes, records).
+1. **UI tests, rustc-style:** `tests/ui/cases/NN-kebab-case/` — a `cmd` file, an `input/` tree and a golden `expected.txt` (human format), with the same cases rendered as JSON in the renderer tests. Every code has a failing case, a passing case, and a tricky case (generics, lambdas, switch patterns, try/finally, inner classes, records).
 2. **False-positive corpus.** Run strict and standard over real projects of varied style, including the user's own. Track diagnostics per kLOC for each code; a rule above the agreed noise budget is downgraded until fixed.
 3. **Suggestion tests.** Every MachineApplicable fix must compile and re-check clean for that code.
 4. **Catalog coverage.** Unmapped upstream keys seen in the corpus are listed (tracked, not failing).
@@ -363,7 +368,10 @@ The false-positive corpus is the gate that decides whether a rule may be set to 
 
 ## Milestones
 
-Build M0 and M1 first: they deliver the feedback loop plus strict Error Prone and NullAway, which is most of the value to an agent.
+All four milestones are delivered as of v0.2. The table stays as the record of what each one owed;
+`README.md` says what each now does.
+
+"Build M0 and M1 first" was the v0.1 sequencing advice: they deliver the feedback loop plus strict Error Prone and NullAway, which is most of the value to an agent.
 
 | Milestone | Scope |
 | --- | --- |
@@ -373,14 +381,15 @@ Build M0 and M1 first: they deliver the feedback loop plus strict Error Prone an
 | **M3: Deeper static guarantees** | Custom check pack (J03xx, J06xx, J07xx), the `jcheck-support` library (Result, Todo, `@Unsafe`, `@Checked`), Checker Framework (Resource Leak, Optional, Index, Lock) per module, SpotBugs and SARIF merge, dedupe across tools. |
 | **M4: Polish and reach** | Maven support, incremental dependents graph, OpenRewrite catalog, PIT and JaCoCo, jcstress / Lincheck hooks, Infer, an LSP or jdtls bridge, CI SARIF. |
 
-## Open decisions
+## Decisions
 
-Seven choices to settle before building; the recommendation is given where one exists.
+v0.1 left seven choices open, with a recommendation where one existed. They are settled as follows;
+the one that is still a policy question is marked **open**.
 
-1. **Gradle only, or Gradle and Maven?** Gradle's Tooling API makes the build model far easier. Recommended: Gradle first.
-2. **Daemon or build-tool plugin?** A standalone daemon is faster and build-tool-agnostic; a Gradle plugin gets dependency resolution for free. Recommended: a standalone daemon that asks the build tool for its model.
-3. **How strict is strict?** Whether `-Werror` plus all Error Prone checks at ERROR is the default for new projects only, with standard (warnings stay warnings) for existing code. Recommended: yes, with `jcheck init` choosing by whether the project already compiles clean.
-4. **Checker Framework scope.** It gives the strongest guarantees (resource ownership, indexing, locking) but adds annotation burden and compile time. Recommended: opt-in per module, not default.
-5. **Custom check pack.** Ship it upstream-style or keep it private; this affects the maintenance burden of Error Prone version compatibility.
-6. **Kotlin and Scala in mixed projects.** Out of scope for v0.1, since javac tooling does not see them. Decide whether to document a hard boundary.
-7. **Supported JDK range.** jcheck runs on JDK 17 or newer (17, 20, 21 and 25 are tested, which is JDK 17's floor plus the LTS line and the latest). Java 8 and 11 projects are checked as `--release` targets, exercised by the suite against those language levels.
+1. **Gradle and Maven.** Both. The Gradle Tooling API supplies the project's own view of its modules and classpath, and the Maven embedder does the same for Maven projects; `jcheck build` delegates to whichever tool the project uses.
+2. **Daemon or build-tool plugin.** A standalone daemon that asks the build tool for its model, as recommended. It is keyed by project root over a Unix socket, so an edit-check loop pays JVM startup once.
+3. **How strict is strict.** `jcheck init` writes the `strict` profile unconditionally. The v0.1 recommendation — choose strict or standard by whether the project already compiles clean — is **not** implemented; a project that wants the softer profile edits `jcheck.toml`, and `--profile standard|lenient` overrides per run. Making `init` detect this is still owed.
+4. **Checker Framework scope.** Opt-in per module through `[checkers.per-module]`, not default: naming a checker for a module turns the framework on for the run.
+5. **Custom check pack distribution.** **Open.** The pack is implemented and ships in-tree; whether to publish it upstream as an Error Prone plugin is a maintenance-cost decision that is still unanswered.
+6. **Kotlin and Scala in mixed projects.** Settled as a hard boundary, not an omission: javac tooling does not see them, so they are out of scope for the check pack (OpenRewrite can rewrite them, not check them). `README.md` lists this under *Out of scope*.
+7. **Supported JDK range.** Settled: jcheck runs on JDK 17 or newer (17, 20, 21 and 25 are tested — JDK 17's floor plus the LTS line and the latest). Java 8 and 11 projects are checked as `--release` targets, exercised by the suite against those language levels.

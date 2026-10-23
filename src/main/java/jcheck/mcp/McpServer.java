@@ -15,7 +15,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import jcheck.cli.CheckRequest;
-import jcheck.cli.Main;
+import jcheck.util.Version;
 import jcheck.selfreport.SelfReport;
 import jcheck.util.Json;
 import jcheck.util.JsonWriter;
@@ -185,7 +185,7 @@ public final class McpServer {
             w.name("serverInfo").beginObject();
             w.field("name", SERVER_NAME);
             w.field("title", "jcheck");
-            w.field("version", Main.VERSION);
+            w.field("version", Version.VERSION);
             w.field("description", "A Rust-style feedback layer for Java");
             w.endObject();
             w.field("instructions", INSTRUCTIONS);

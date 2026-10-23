@@ -15,11 +15,10 @@ import jcheck.lsp.LspServer;
 import jcheck.mcp.McpServer;
 import jcheck.selfreport.IssueLog;
 import jcheck.selfreport.SelfReport;
+import jcheck.util.Version;
 
 /** jcheck's single entry point. */
 public final class Main {
-
-    public static final String VERSION = "0.1.0";
 
     public static final Set<String> VALUE_FLAGS = Set.of(
         "root", "message-format", "max-diagnostics", "context-lines", "profile",
@@ -75,7 +74,7 @@ public final class Main {
             case "version":
             case "--version":
             case "-V":
-                System.out.println("jcheck " + VERSION + " (spec v0.1) "
+                System.out.println("jcheck " + Version.VERSION + " (spec v" + Version.SPEC + ") "
                     + "running on JDK " + Runtime.version().feature());
                 return CheckCommand.EXIT_CLEAN;
             case "check":
@@ -508,7 +507,7 @@ public final class Main {
 
     static String usage() {
         return String.join("\n",
-            "jcheck " + VERSION + " - a Rust-style feedback layer for Java",
+            "jcheck " + Version.VERSION + " - a Rust-style feedback layer for Java",
             "",
             "usage: jcheck <command> [flags]",
             "",

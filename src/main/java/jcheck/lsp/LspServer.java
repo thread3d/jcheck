@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import jcheck.cli.CheckRequest;
-import jcheck.cli.Main;
+import jcheck.util.Version;
 import jcheck.mcp.ProjectState;
 import jcheck.model.CheckReport;
 import jcheck.model.Diagnostic;
@@ -108,7 +108,7 @@ public final class LspServer {
                     .endObject()
                     .name("serverInfo").beginObject()
                         .field("name", "jcheck")
-                        .field("version", Main.VERSION)
+                        .field("version", Version.VERSION)
                     .endObject()
                     .endObject());
                 return false;

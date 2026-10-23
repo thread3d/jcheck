@@ -186,6 +186,28 @@ final class UnitTests {
             contains("selfreport:tool-failure", rendered,
                 "SpotBugs is configured but the check produced no class files");
 
+            // The gap is the missing catalog row, so two sites on one upstream key are one
+            // backlog entry. The detail keeps the messages and never the locations that used to
+            // turn a single missing row into one entry per file.
+            Diagnostic siteA = Diagnostic.builder("J9002")
+                .source("javac").sourceKey("compiler.err.other.key")
+                .level(Level.WARNING).tier(Tier.T1).message("other compiler message")
+                .primary(Span.at("A.java", 3, 5)).seq(2).build();
+            Diagnostic siteB = Diagnostic.builder("J9002")
+                .source("javac").sourceKey("compiler.err.other.key")
+                .level(Level.WARNING).tier(Tier.T1).message("other compiler message")
+                .primary(Span.at("B.java", 7, 1)).seq(3).build();
+            SelfReport.captureReport(new CheckReport(List.of(siteA, siteB), List.of(), List.of(),
+                tiers, List.of(), List.of()));
+            List<Issue> perKey = IssueLog.read().stream()
+                .filter(i -> i.summary().equals(
+                    "unmapped javac diagnostic: compiler.err.other.key"))
+                .toList();
+            eq("selfreport:catalog-gap-per-key", 1, perKey.size());
+            contains("selfreport:catalog-gap-message", perKey.get(0).detail(),
+                "other compiler message");
+            notContains("selfreport:catalog-gap-no-location", perKey.get(0).detail(), ".java");
+
             // The identity of a problem survives scratch directories and object identity hashes.
             eq("selfreport:fingerprint-stable",
                 Issue.fingerprint(IssueKind.TOOL_FAILURE, "x @1a2b3c4d5e",

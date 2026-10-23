@@ -9,7 +9,7 @@ import java.util.Map;
 import jcheck.build.BuildModel;
 import jcheck.catalog.Catalog;
 import jcheck.catalog.CatalogEntry;
-import jcheck.cli.Main;
+import jcheck.util.Version;
 import jcheck.config.JcheckConfig;
 import jcheck.engine.NativeChecks;
 import jcheck.explain.Explainer;
@@ -193,7 +193,7 @@ public final class McpResources {
         StringBuilder sb = new StringBuilder();
 
         sb.append("# jcheck capabilities\n\n");
-        sb.append("jcheck ").append(Main.VERSION)
+        sb.append("jcheck ").append(Version.VERSION)
           .append(" on JDK ").append(Runtime.version().feature())
           .append(" - profile `").append(config.profile).append("`")
           .append(", build tool `").append(model.buildTool).append("`\n\n");

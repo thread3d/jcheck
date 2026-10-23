@@ -7,6 +7,7 @@ import jcheck.model.Level;
 import jcheck.model.Span;
 import jcheck.model.Tier;
 import jcheck.util.JsonWriter;
+import jcheck.util.Version;
 
 /** SARIF 2.1.0 renderer, for CI and IDEs. */
 public final class SarifRenderer implements Renderer {
@@ -31,7 +32,7 @@ public final class SarifRenderer implements Renderer {
         w.name("driver").beginObject();
         w.field("name", "jcheck");
         w.field("informationUri", "https://github.com/thread3d/jcheck");
-        w.field("version", "0.1.0");
+        w.field("version", Version.VERSION);
         w.name("rules").beginArray();
         for (Map.Entry<String, Diagnostic> e : JsonRenderer.firstByCode(report).entrySet()) {
             Diagnostic d = e.getValue();

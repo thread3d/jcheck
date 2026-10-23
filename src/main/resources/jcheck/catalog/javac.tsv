@@ -29,6 +29,7 @@ javac	compiler.err.illegal.char	J0127	0	illegal character: {0}	illegal character
 javac	compiler.err.invalid.meth.decl.ret.type.req	J0128	0	invalid method declaration; return type required	missing return type		constructors must have the same name as the class	docs/J0128.md
 javac	compiler.err.void.not.allowed.here	J0129	0	void type is not allowed here	void is not a value			docs/J0129.md
 javac	compiler.err.dot.class.expected	J0130	0	.class expected	expected .class			docs/J0130.md
+javac	compiler.err.feature.not.supported.in.source.plural	J0131	0	{0} are not supported in -source {1}	not enabled at this release		raise --release (the project's release floor) to at least the version that introduced the feature	docs/J0131.md
 javac	compiler.err.cant.resolve	J0204	1	cannot resolve symbol {0}	cannot be resolved			docs/J0204.md
 javac	compiler.err.cant.resolve.location	J0205	1	cannot resolve symbol {0}	cannot be resolved		check the spelling and the imports|run a build so generated sources exist	docs/J0205.md
 javac	compiler.err.cant.resolve.location.args	J0206	1	cannot resolve symbol {0}	cannot be resolved for these arguments			docs/J0206.md
@@ -84,6 +85,8 @@ javac	compiler.err.possible.loss.of.precision	J0252	2	possible lossy conversion 
 javac	compiler.err.exception.already.caught	J0253	2	exception {0} has already been caught	already caught by an earlier clause			docs/J0253.md
 javac	compiler.err.except.never.thrown.in.try	J0254	2	exception {0} is never thrown in the body of the corresponding try statement	never thrown here			docs/J0254.md
 javac	compiler.err.initializer.must.be.able.to.complete.normally	J0255	2	initializer must be able to complete normally	cannot complete normally			docs/J0255.md
+javac	compiler.err.static.imp.only.classes.and.interfaces	J0256	1	static import only from classes and interfaces	static import of a non-type		import the member from its declaring class or interface, or make the import non-static	docs/J0256.md
+javac	compiler.err.restricted.type.not.allowed	J0257	1	'{0}' not allowed here	reserved type name		rename the type; var, yield, record, sealed and permits are reserved type names from the release that introduced them	docs/J0257.md
 javac	compiler.warn.unchecked.call.mbr.of.raw.type	J0401	2	unchecked call to {0} as a member of the raw type {1}	unchecked	unchecked		docs/J0401.md
 javac	compiler.warn.unchecked.assign	J0402	2	unchecked assignment: {0} to {1}	unchecked	unchecked		docs/J0402.md
 javac	compiler.warn.unchecked.varargs.non.reifiable.type	J0403	2	unchecked generic array creation for varargs parameter of type {0}	unchecked varargs	unchecked-varargs		docs/J0403.md
@@ -125,3 +128,8 @@ javac	compiler.warn.try.resource.throws.interrupted.exc	J0480	2	auto-closeable r
 javac	compiler.warn.leaks.not.accessible	J0481	2	type {0} is not accessible to clients that require it	not accessible	module-access	export the package or narrow the API	docs/J0481.md
 javac	compiler.warn.leaks.not.accessible.not.required.transitive	J0482	2	type {0} is not accessible to clients that require it transitively	not accessible transitively	module-access	export the package, or stop requiring it transitively	docs/J0482.md
 javac	compiler.warn.override.unchecked.ret	J0483	2	unchecked return type {0} for method {1}	unchecked return type	unchecked	return the same type, or add a type witness at the call site	docs/J0483.md
+javac	compiler.warn.restricted.type.not.allowed	J0484	2	'{0}' is a restricted type name as of release {1}	restricted type name		rename the type; var, yield, record and sealed are reserved type names in newer releases	docs/J0484.md
+javac	compiler.warn.restricted.type.not.allowed.preview	J0485	2	'{0}' may become a restricted type name in a future release	will become a restricted type name		rename the type now; a future release reserves the name	docs/J0485.md
+javac	compiler.warn.option.obsolete.source	J0486	2	source value {0} is obsolete and will be removed in a future release	obsolete source release		raise the project's release floor, or silence it with -Xlint:-options when the old release is deliberate	docs/J0486.md
+javac	compiler.warn.option.obsolete.target	J0487	2	target value {0} is obsolete and will be removed in a future release	obsolete target release		keep -source and -target on the same supported release	docs/J0487.md
+javac	compiler.warn.option.obsolete.suppression	J0488	2	release floor is obsolete for this JDK; silence with -Xlint:-options	obsolete release floor		target a release the running JDK still supports, or disable the options lint deliberately	docs/J0488.md

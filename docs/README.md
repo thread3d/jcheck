@@ -13,8 +13,11 @@ the headlines, labels and help lines live in the TSV resources under
 | Code | Check | Tier | Default level |
 | --- | --- | --- | --- |
 | J0003 | SuppressionNeedsReason | T2 policy | deny |
+| J0131 | FeatureNotSupportedAtRelease | T0 syntax | error |
 | J0201 | NonExhaustiveSwitch | T2 flow | error |
 | J0203 | MissingReturnStatement | T2 flow | error |
+| J0256 | StaticImportNotFromType | T1 symbols and types | error |
+| J0257 | RestrictedTypeNameError | T1 symbols and types | error |
 | J0260 | OverrideIncompatibleReturn | T2 flow | deny |
 | J0261 | OverrideWeakerAccess | T2 flow | deny |
 | J0465 | UnsafeVarargs | T2 flow | warn |
@@ -36,6 +39,11 @@ the headlines, labels and help lines live in the TSV resources under
 | J0481 | LeaksNotAccessible | T2 flow | warn |
 | J0482 | LeaksNotAccessibleNotRequiredTransitive | T2 flow | warn |
 | J0483 | OverrideUncheckedReturn | T2 flow | warn |
+| J0484 | RestrictedTypeName | T2 flow | warn |
+| J0485 | RestrictedTypeNamePreview | T2 flow | warn |
+| J0486 | ObsoleteSourceRelease | T2 flow | warn |
+| J0487 | ObsoleteTargetRelease | T2 flow | warn |
+| J0488 | ObsoleteOptionSuppression | T2 flow | warn |
 | J0301 | UncheckedArithmetic | T3 jcheck-checks | deny in `@Checked` |
 | J0302 | LossyCast | T3 jcheck-checks | deny |
 | J0601 | SharedMutableWithoutGuard | T3 jcheck-checks | deny in `@ThreadSafe` |

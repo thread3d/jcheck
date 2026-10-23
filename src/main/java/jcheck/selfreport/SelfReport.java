@@ -2,13 +2,19 @@ package jcheck.selfreport;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
-import jcheck.cli.Main;
+import java.util.Map;
+import java.util.Set;
 import jcheck.model.CheckReport;
 import jcheck.model.Diagnostic;
 import jcheck.model.Tier;
 import jcheck.model.TierReport;
+import jcheck.util.Version;
 
 /**
  * The one way jcheck records its own trouble.
@@ -94,7 +100,7 @@ public final class SelfReport {
             kind.hint(),
             command,
             root,
-            Main.VERSION,
+            Version.VERSION,
             Runtime.version().toString(),
             System.getProperty("os.name", "") + " "
                 + System.getProperty("os.version", "") + " "
@@ -160,8 +166,8 @@ public final class SelfReport {
 
     /**
      * Captures the self-report signals a finished check carries: tiers that were enabled but did
-     * not run, tool notes about failed integrations, and every diagnostic still on a {@code J9xxx}
-     * fallback code (the catalog gaps that make the tool less useful).
+     * not run, tool notes about failed integrations, and the catalog gaps that make the tool less
+     * useful: one entry per unmapped upstream key, however many sites used it.
      */
     public static void captureReport(CheckReport report) {
         if (report == null) {
@@ -176,14 +182,50 @@ public final class SelfReport {
             }
         }
         captureNotes(report.toolNotes);
+        /*
+         * One entry per upstream key, not per site. The gap is the missing catalog row, so two
+         * sites on one key are one problem: putting the location in the detail made a single
+         * missing row become nineteen backlog entries for a project that static-imports from
+         * nineteen files. The messages are kept (deduplicated, in first-seen order) because they
+         * are what the curator writes the headline and help from; the locations stay in the
+         * report, where they are actually useful.
+         */
+        Map<String, Gap> gaps = new LinkedHashMap<>();
         for (Diagnostic d : report.diagnostics) {
             if (!isFallbackCode(d.code)) {
                 continue;
             }
-            String location = d.primary == null ? "" : d.primary.display() + ": ";
-            record(IssueKind.CAPABILITY_GAP,
-                "unmapped " + d.source + " diagnostic: " + d.sourceKey,
-                location + d.message, null);
+            gaps.computeIfAbsent("unmapped " + d.source + " diagnostic: " + d.sourceKey,
+                summary -> new Gap()).add(d.message);
+        }
+        for (Map.Entry<String, Gap> gap : gaps.entrySet()) {
+            record(IssueKind.CAPABILITY_GAP, gap.getKey(), gap.getValue().detail(), null);
+        }
+    }
+
+    /** The distinct messages one unmapped upstream key produced in a single run. */
+    private static final class Gap {
+
+        /** Enough to show the shape of the message without turning the backlog into a dump. */
+        private static final int MAX_MESSAGES = 4;
+
+        private final Set<String> messages = new LinkedHashSet<>();
+
+        void add(String message) {
+            if (message != null && !message.isBlank()) {
+                messages.add(oneLine(message));
+            }
+        }
+
+        String detail() {
+            if (messages.isEmpty()) {
+                return "";
+            }
+            if (messages.size() <= MAX_MESSAGES) {
+                return String.join(" | ", messages);
+            }
+            List<String> shown = new ArrayList<>(messages).subList(0, MAX_MESSAGES);
+            return String.join(" | ", shown) + " | ...";
         }
     }
 
