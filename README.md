@@ -112,6 +112,11 @@ declaring a tools capability.
 Verified against the official `@modelcontextprotocol/sdk` client, not only jcheck's own:
 see `tests/mcp-sdk-verify/`.
 
+A host that bridges **tools only** — the DeepSeek Harness's MCP client does — would get nothing
+from this server, because there are no tools to bridge. [`harness/dsh/`](harness/dsh/README.md) is
+an optional adapter for exactly that case: it proxies this server and exposes `list_resources` and
+`read_resource` as tools, while jcheck itself stays resources-only.
+
 
 
 ## Self-report: jcheck's own issue log
@@ -431,6 +436,7 @@ issues/                                   self-report backlog (JSONL gitignored,
 tests/java/                               unit tests and the golden runner
 tests/ui/cases/                           rustc-style golden cases
 tests/mcp-sdk-verify/                     opt-in MCP check against the official SDK
+harness/dsh/                              resources-as-tools bridge for DSH (optional, not built)
 ```
 
 ## License
